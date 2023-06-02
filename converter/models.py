@@ -94,3 +94,8 @@ class Format(BaseModel):
 class VideoInformation(BaseModel):
     streams: list[Stream]
     format: Format
+
+class FileData(BaseModel):
+    file_path: str
+    video_information: VideoInformation
+    requires_conversion: bool
