@@ -1,0 +1,28 @@
+version: "3.11"
+
+services:
+  backend:
+    build: backend
+    hostname: backend
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src:/src:ro
+      - /Volumes/Media/Films:/Films:ro
+    restart: no
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  mongodb:
+    image: mongo:4.4.18
+    hostname: mongodb
+    ports:
+      - 27017:27017
+    volumes:
+      - db_volume:/data/db:rw
+      - db_conf:/data/configdb:rw
+    restart: no
+    
+volumes:
+  db_volume:
+  db_conf:

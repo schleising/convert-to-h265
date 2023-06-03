@@ -24,12 +24,15 @@ class CodecDetector:
 
         # Get the old data from MongoDB
         if self.collection is not None:
+            logging.info("Getting old data from MongoDB")
             self.old_data = self.collection.find({})
             self.old_data = [FileData(**data) for data in self.old_data]
             self.old_data = {data.file_path: data for data in self.old_data}
 
     def get_file_encoding(self) -> None:
         bulk_write_operations = []
+
+        logging.info("Getting file encoding")
 
         for file in track(self.files, description="Getting file encoding..."):
             if file.as_posix() not in self.old_data:
@@ -59,3 +62,5 @@ class CodecDetector:
         if bulk_write_operations and self.collection is not None:
             logging.info("Writing to MongoDB")
             self.collection.bulk_write(bulk_write_operations)
+        else:
+            logging.info("No new data to write to MongoDB")

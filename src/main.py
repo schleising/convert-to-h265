@@ -16,7 +16,7 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
         walker = FolderWalker(paths=[
             # Path('/volumes/Media/TV'),
-            Path('/volumes/Media/Films'),
+            Path('/Volumes/media/Films'),
             # Path('/volumes/home/Drive/Films'),
         ])
 
