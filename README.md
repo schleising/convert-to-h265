@@ -21,6 +21,7 @@ graph TD
     L --> M[Add data to database]
     I --> M
     J --> M
+    M --> F
     M --> N(End of loop)
     N --> C
 ```
