@@ -10,7 +10,7 @@ graph TD
     B --> C[Loop through files]
     C --> D[Check whether file is in database]
     D --No--> E[ffprobe file]
-    D --Yes--> N
+    D --Yes--> O
     E --> F[Loop through streams]
     F --> G[Get stream type]
     G --Video--> H[Incrememt Video Stream count]
@@ -18,12 +18,13 @@ graph TD
     G --Subs--> J[Incrememt Subs Stream count]
     H --> K[Check if Video Stream is h265]
     K --Yes--> L[Set Don't Convert Flag]
-    L --> M[Add data to database]
+    L --> M[End of loop]
     I --> M
     J --> M
     M --> F
-    M --> N(End of loop)
-    N --> C
+    M --> N(Add data to database)
+    N --> O[End of loop]
+    O --> C
 ```
 
 ## Flowchart for conversion
