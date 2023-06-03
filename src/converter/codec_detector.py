@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 import logging
+from pydantic import ValidationError
 
 from rich.progress import track
 
@@ -41,20 +42,39 @@ class CodecDetector:
                 ffprobe_output = subprocess.run(ffprobe_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
                 requires_conversion = True
+                video_stream_count = 0
+                audio_stream_count = 0
+                subtitle_stream_count = 0
 
                 if ffprobe_output.returncode == 0:
-                    video_information = VideoInformation.parse_raw(ffprobe_output.stdout)
+                    try:
+                        video_information = VideoInformation.parse_raw(ffprobe_output.stdout)
+                    except ValidationError as e:
+                        logging.error(f"Error parsing {file.as_posix()}")
+                        logging.error(e)
+                        continue
 
                     for stream in video_information.streams:
-                        if stream.codec_name == 'hevc':
-                            requires_conversion = False
-                            break
+                        if stream.codec_type == 'video':
+                            video_stream_count += 1
+
+                            if stream.codec_name == 'hevc':
+                                requires_conversion = False
+
+                        elif stream.codec_type == 'audio':
+                            audio_stream_count += 1
+
+                        elif stream.codec_type == 'subtitle':
+                            subtitle_stream_count += 1
 
                     if self.collection is not None:
                         file_data = FileData(
                             file_path=file.as_posix(),
                             video_information=video_information,
                             requires_conversion=requires_conversion,
+                            video_streams=video_stream_count,
+                            audio_streams=audio_stream_count,
+                            subtitle_streams=subtitle_stream_count
                         )
 
                         bulk_write_operations.append(InsertOne(file_data.dict()))

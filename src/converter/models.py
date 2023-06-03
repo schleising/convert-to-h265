@@ -24,6 +24,9 @@ class Tags(BaseModel):
     handler_name: str | None
     vendor_id: str | None
     encoder: str | None
+    title: str | None
+    creation_time: str | None
+    duration: str | None
 
 class Stream(BaseModel):
     index: int | None
@@ -71,11 +74,20 @@ class Stream(BaseModel):
     channel_layout: str | None
     bits_per_sample: int | None
     initial_padding: int | None
+    display_aspect_ratio: str | None
+    sample_aspect_ratio: str | None
+    side_data_list: list[dict] | None
+    divx_packed: str | None
+    quarter_sample: str | None
 
 class Tags1(BaseModel):
     major_brand: str | None
     minor_version: str | None
     compatible_brands: str | None
+    encoder: str | None
+    creation_time: str | None
+    title: str | None
+    comment: str | None
     encoder: str | None
 
 class Format(BaseModel):
@@ -99,3 +111,6 @@ class FileData(BaseModel):
     file_path: str
     video_information: VideoInformation
     requires_conversion: bool
+    video_streams: int
+    audio_streams: int
+    subtitle_streams: int
