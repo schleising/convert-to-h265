@@ -1,0 +1,20 @@
+# Settings for the mongo database
+[mongo]
+    # The URI of the MongoDB server
+    uri = "mongodb://mongodb:27017/"
+
+    # The database and collection to store the data in
+    database = "media"
+    collection = "conversion_data"
+
+# Folder definitions
+[folders]
+    # The path to the folders to scan
+    include = [
+        "/Films",
+    ]
+
+    # The path to folders to exclude from the scan
+    exclude = [
+        "/Films/VR",
+    ]

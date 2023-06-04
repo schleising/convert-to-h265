@@ -2,9 +2,7 @@ import logging
 import sys
 import signal
 
-from pymongo import MongoClient
-
-from converter.task_scheduler import TaskScheduler
+from converter import TaskScheduler
 
 def signal_handler(sig: int, _):
     # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -21,27 +19,11 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Set logging level and format
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+    # Create the task scheduler
+    scheduler = TaskScheduler()
 
-    # Connect to MongoDB
-    client = MongoClient('mongodb://mongodb:27017/')
-    logging.debug("Connected to MongoDB")
-
-    try:
-        # Get the database and collection
-        db = client['media']
-        collection = db['conversion_data']
-
-        # Create the task scheduler
-        scheduler = TaskScheduler(collection=collection)
-
-        # Run the task scheduler
-        scheduler.run()
-    finally:
-        # Close MongoDB connection
-        client.close()
-        logging.debug("Closed MongoDB connection")
+    # Run the task scheduler
+    scheduler.run()
 
 if __name__ == "__main__":
     # Run the main function
