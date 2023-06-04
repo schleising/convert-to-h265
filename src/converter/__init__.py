@@ -6,7 +6,7 @@ from pymongo import MongoClient
 from .config import Config
 
 def close_mongo_connection() -> None:
-    # Close MongoDB connection when the program exits
+    # This function will be registered with atexit to close the MongoDB connection when the program exits
     client.close()
     logging.info("Closed MongoDB connection")
 
@@ -27,4 +27,5 @@ atexit.register(close_mongo_connection)
 db = client[config.config_data.mongo.database]
 collection = db[config.config_data.mongo.collection]
 
+# Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler

@@ -1,8 +1,4 @@
 dnspython==2.3.0
-markdown-it-py==2.2.0
-mdurl==0.1.2
 pydantic==1.10.8
-Pygments==2.15.1
 pymongo==4.3.3
-rich==13.4.1
-typing_extensions==4.6.2
+typing_extensions==4.6.3

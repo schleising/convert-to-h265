@@ -1,3 +1,4 @@
+from datetime import time
 from pathlib import Path
 import tomllib
 
@@ -12,16 +13,23 @@ class Folders(BaseModel):
     include: list[Path]
     exclude: list[Path] | None
 
+class Schedule(BaseModel):
+    timezone: str
+    scan_time: time
+    start_conversion_time: time
+    end_conversion_time: time
+
 class ConfigData(BaseModel):
     mongo: Mongo
     folders: Folders
+    schedule: Schedule
 
 class Config:
     def __init__(self) -> None:
+        # Load the config file
         with open("src/config.toml", "rb") as f:
+            # Use tomllib to parse the TOML file
             data = tomllib.load(f)
-            self._config_data = ConfigData(**data)
 
-    @property
-    def config_data(self) -> ConfigData:
-        return self._config_data
+            # Convert the data to a ConfigData object
+            self.config_data = ConfigData(**data)
