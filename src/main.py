@@ -1,32 +1,48 @@
-from pathlib import Path
 import logging
+import sys
+import signal
 
 from pymongo import MongoClient
 
-from converter.folder_walker import FolderWalker
-from converter.codec_detector import CodecDetector
+from converter.task_scheduler import TaskScheduler
 
-if __name__ == "__main__":
+def signal_handler(sig: int, _):
+    # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
+    match sig:
+        case signal.SIGINT:
+            logging.info("Stopping due to keyboard interrupt...")
+            sys.exit(0)
+        case signal.SIGTERM:
+            logging.info("Stopping due to SIGTERM...")
+            sys.exit(0)
+
+def main() -> None:
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Set logging level and format
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+
     # Connect to MongoDB
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client['media']
-    collection = db['conversion_data']
+    client = MongoClient('mongodb://mongodb:27017/')
+    logging.debug("Connected to MongoDB")
 
     try:
-        logging.basicConfig(level=logging.DEBUG)
-        walker = FolderWalker(paths=[
-            # Path('/volumes/Media/TV'),
-            Path('/Volumes/media/Films'),
-            # Path('/volumes/home/Drive/Films'),
-        ])
+        # Get the database and collection
+        db = client['media']
+        collection = db['conversion_data']
 
-        walker.walk_folders()
+        # Create the task scheduler
+        scheduler = TaskScheduler(collection=collection)
 
-        detector = CodecDetector(files=walker.files, collection=collection)
-        detector.get_file_encoding()
-
-        logging.debug(len(walker.files))
+        # Run the task scheduler
+        scheduler.run()
     finally:
         # Close MongoDB connection
         client.close()
         logging.debug("Closed MongoDB connection")
+
+if __name__ == "__main__":
+    # Run the main function
+    main()
