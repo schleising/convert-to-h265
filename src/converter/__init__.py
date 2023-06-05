@@ -1,7 +1,7 @@
 import logging
 import atexit
 
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
 
 from .config import Config
 
@@ -26,6 +26,7 @@ atexit.register(close_mongo_connection)
 # Get the database and collection
 db = client[config.config_data.mongo.database]
 collection = db[config.config_data.mongo.collection]
+collection.create_index([("file_path", ASCENDING)], unique=True)
 
 # Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler
