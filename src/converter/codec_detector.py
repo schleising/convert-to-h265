@@ -3,7 +3,7 @@ import subprocess
 import logging
 from pydantic import ValidationError
 
-from pymongo import InsertOne
+from pymongo import UpdateOne
 
 from .models import VideoInformation, FileData
 from . import collection
@@ -95,7 +95,11 @@ class CodecDetector:
                     )
 
                     # Append the FileData object to the list of bulk write operations
-                    bulk_write_operations.append(InsertOne(file_data.dict()))
+                    bulk_write_operations.append(UpdateOne({"file_path": file.as_posix()}, {"$set": file_data.dict()}, upsert=True))
+                else:
+                    # ffprobe failed
+                    logging.error(f"ffprobe failed for {file.as_posix()}")
+                    logging.error(ffprobe_output.stderr)
 
         if bulk_write_operations:
             # There is new data to write to MongoDB
