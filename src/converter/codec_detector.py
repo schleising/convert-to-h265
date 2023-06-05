@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from pymongo import UpdateOne
 
 from .models import VideoInformation, FileData
-from . import collection
+from . import media_collection
 
 class CodecDetector:
     def __init__(self, files: list[Path]) -> None:
@@ -24,7 +24,7 @@ class CodecDetector:
 
         # Get the old data from MongoDB
         logging.info("Getting old data from MongoDB")
-        self.old_data = collection.find({})
+        self.old_data = media_collection.find({})
 
         # Convert the old data to FileData objects
         self.old_data = [FileData(**data) for data in self.old_data]
@@ -112,7 +112,7 @@ class CodecDetector:
             logging.info("Writing to MongoDB")
 
             # Write the new data to MongoDB
-            collection.bulk_write(bulk_write_operations)
+            media_collection.bulk_write(bulk_write_operations)
         else:
             # There is no new data to write to MongoDB
             logging.info("No new data to write to MongoDB")
