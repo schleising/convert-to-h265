@@ -44,7 +44,7 @@ class TaskScheduler:
                     logging.info("Start conversion")
                     self.conversion_running = True
             else:
-                logging.info(f'Current time: {now}, start conversion time: {self.start_conversion_time}, end conversion time: {self.end_conversion_time}')
+                logging.debug(f'Current time: {now}, start conversion time: {self.start_conversion_time}, end conversion time: {self.end_conversion_time}')
                 # If the current time is not between the start conversion time and the end conversion time, stop the conversion
                 self.conversion_running = False
 
