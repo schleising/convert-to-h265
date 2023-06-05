@@ -34,13 +34,17 @@ class TaskScheduler:
                 self.next_walk_time = (datetime.combine(now.date(), self.scan_time, tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(UTC)
                 logging.info(f"Next walk time: {self.next_walk_time}")
 
-            if self.start_conversion_time < now.time() < self.end_conversion_time:
+            start_conversion_datetime = datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self.start_conversion_time, tzinfo=ZoneInfo(config.config_data.schedule.timezone)).astimezone(UTC)
+            end_conversion_datetime = datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self.end_conversion_time, tzinfo=ZoneInfo(config.config_data.schedule.timezone)).astimezone(UTC)
+
+            if start_conversion_datetime < now < end_conversion_datetime:
                 # If the current time is between the start conversion time and the end conversion time, start the conversion
                 if not self.conversion_running:
                     # If the conversion is not already running, log a message and start the conversion
                     logging.info("Start conversion")
                     self.conversion_running = True
             else:
+                logging.info(f'Current time: {now}, start conversion time: {self.start_conversion_time}, end conversion time: {self.end_conversion_time}')
                 # If the current time is not between the start conversion time and the end conversion time, stop the conversion
                 self.conversion_running = False
 
