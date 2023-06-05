@@ -8,7 +8,6 @@ services:
       - mongodb
     volumes:
       - ./src:/src:ro
-      - /Volumes/Media/Films:/Films:ro
     restart: no
     extra_hosts:
         - "host.docker.internal:host-gateway"
