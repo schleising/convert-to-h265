@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 
 class Disposition(BaseModel):
@@ -111,7 +112,10 @@ class FileData(BaseModel):
     file_path: str
     video_information: VideoInformation
     requires_conversion: bool
+    converting: bool
     converted: bool
+    start_conversion_time: datetime | None
+    end_conversion_time: datetime | None
     video_streams: int
     audio_streams: int
     subtitle_streams: int
