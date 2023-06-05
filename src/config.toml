@@ -11,12 +11,12 @@
 [folders]
     # The path to the folders to scan
     include = [
-        "/Films",
+        "/Media",
     ]
 
     # The path to folders to exclude from the scan
     exclude = [
-        "/Films/VR",
+        "/Media/Films/VR",
     ]
 
 # Schedule definitions
