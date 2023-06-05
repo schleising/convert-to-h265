@@ -5,7 +5,7 @@
 
     # The database and collection to store the data in
     database = "media"
-    collection = "conversion_data"
+    media_collection = "media_collection"
 
 # Folder definitions
 [folders]

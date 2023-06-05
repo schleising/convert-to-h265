@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class Mongo(BaseModel):
     uri: str
     database: str
-    collection: str
+    media_collection: str
 
 class Folders(BaseModel):
     include: list[Path]

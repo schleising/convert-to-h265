@@ -23,9 +23,11 @@ logging.info("Connected to MongoDB")
 # Register the close_mongo_connection function to run at exit
 atexit.register(close_mongo_connection)
 
-# Get the database and collection
+# Get the database
 db = client[config.config_data.mongo.database]
-media_collection = db[config.config_data.mongo.collection]
+
+# Get the media collection
+media_collection = db[config.config_data.mongo.media_collection]
 media_collection.create_index([("file_path", ASCENDING)], unique=True)
 
 # Import TaskScheduler to make it available directly from the converter package
