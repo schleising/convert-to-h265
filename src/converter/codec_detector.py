@@ -41,6 +41,9 @@ class CodecDetector:
         for file in self.files:
             if file.as_posix() not in self.old_data:
                 # File is not in the database, so we need to get the encoding
+                # First get the file size
+                file_size = file.stat().st_size
+
                 # Construct the ffprobe command
                 ffprobe_command = list(self.ffprobe_base_command)
                 ffprobe_command.append(file.as_posix())
@@ -89,9 +92,12 @@ class CodecDetector:
                         file_path=file.as_posix(),
                         video_information=video_information,
                         requires_conversion=requires_conversion,
+                        converted=False,
                         video_streams=video_stream_count,
                         audio_streams=audio_stream_count,
-                        subtitle_streams=subtitle_stream_count
+                        subtitle_streams=subtitle_stream_count,
+                        pre_conversion_size=file_size,
+                        current_size=file_size,
                     )
 
                     # Append the FileData object to the list of bulk write operations

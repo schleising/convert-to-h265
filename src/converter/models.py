@@ -111,6 +111,9 @@ class FileData(BaseModel):
     file_path: str
     video_information: VideoInformation
     requires_conversion: bool
+    converted: bool
     video_streams: int
     audio_streams: int
     subtitle_streams: int
+    pre_conversion_size: int
+    current_size: int
