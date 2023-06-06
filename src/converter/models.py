@@ -98,7 +98,7 @@ class Format(BaseModel):
     format_name: str | None
     format_long_name: str | None
     start_time: float | None
-    duration: float | None
+    duration: float
     size: int | None
     bit_rate: int | None
     probe_score: int | None
@@ -109,15 +109,20 @@ class VideoInformation(BaseModel):
     format: Format
 
 class FileData(BaseModel):
-    file_path: str
+    filename: str
     video_information: VideoInformation
-    requires_conversion: bool
+    conversion_required: bool
     converting: bool
     converted: bool
+    conversion_error: bool
+    percentage_complete: float
     start_conversion_time: datetime | None
     end_conversion_time: datetime | None
     video_streams: int
     audio_streams: int
     subtitle_streams: int
+    first_video_stream: int | None
+    first_audio_stream: int | None
+    first_subtitle_stream: int | None
     pre_conversion_size: int
     current_size: int

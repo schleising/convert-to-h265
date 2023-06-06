@@ -28,7 +28,7 @@ db = client[config.config_data.mongo.database]
 
 # Get the media collection
 media_collection = db[config.config_data.mongo.media_collection]
-media_collection.create_index([("file_path", ASCENDING)], unique=True)
+media_collection.create_index([("filename", ASCENDING)], unique=True)
 
 # Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler
