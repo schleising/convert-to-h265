@@ -1,4 +1,4 @@
-from converter import TaskScheduler
+from converter.task_scheduler import TaskScheduler
 
 def main() -> None:
     # Create the task scheduler
