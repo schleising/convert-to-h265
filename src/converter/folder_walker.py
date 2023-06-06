@@ -18,7 +18,7 @@ class FolderWalker:
                 self.paths.append(path)
 
         # List of files found
-        self.files: list[Path] = []
+        self._files: list[Path] = []
 
     def walk_folders(self) -> None:
         # Walk each path
@@ -41,4 +41,7 @@ class FolderWalker:
                         self._walk(file)
                 elif file.is_file() and file.suffix in [".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", "mpg"]:
                     # If it's a file and it's a video file, add it to the list of files to find the encoding of
-                    self.files.append(file)
+                    self._files.append(file)
+
+        # Turn the list of files into a dict with filename as the key
+        self.files = {file.as_posix(): file for file in self._files}

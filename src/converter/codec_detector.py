@@ -9,9 +9,9 @@ from .models import VideoInformation, FileData
 from . import media_collection
 
 class CodecDetector:
-    def __init__(self, files: list[Path]) -> None:
+    def __init__(self, files: dict[str, Path]) -> None:
         # List of files to detect the encoding of
-        self.files: list[Path] = files
+        self.files: dict[str, Path] = files
 
         # The base command to run ffprobe
         self.ffprobe_base_command = [
@@ -24,13 +24,25 @@ class CodecDetector:
 
         # Get the old data from MongoDB
         logging.info("Getting old data from MongoDB")
-        self.old_data = media_collection.find({})
+        data_from_db = media_collection.find({})
 
         # Convert the old data to FileData objects
-        self.old_data = [FileData(**data) for data in self.old_data]
+        list_from_db = [FileData(**data) for data in data_from_db]
 
         # Convert the list of FileData objects to a dictionary with the file path as the key
-        self.old_data = {data.filename: data for data in self.old_data}
+        self.dict_from_db = {data.filename: data for data in list_from_db}
+
+        # Remove files that have been deleted
+        self._remove_deleted_files()
+
+    def _remove_deleted_files(self) -> None:
+        # If files have been deleted, remove them from the database
+        deleted_files = set(self.dict_from_db.keys()) - set(self.files.keys())
+
+        if deleted_files:
+            for file in deleted_files:
+                media_collection.delete_one({"filename": file})
+                logging.info(f"Deleted {file} from database")
 
     def get_file_encoding(self) -> None:
         # List of bulk write operations to run
@@ -38,15 +50,15 @@ class CodecDetector:
 
         logging.info("Getting file encoding")
 
-        for file in self.files:
-            if file.as_posix() not in self.old_data:
+        for file, path in self.files.items():
+            if file not in self.dict_from_db:
                 # File is not in the database, so we need to get the encoding
                 # First get the file size
-                file_size = file.stat().st_size
+                file_size = path.stat().st_size
 
                 # Construct the ffprobe command
                 ffprobe_command = list(self.ffprobe_base_command)
-                ffprobe_command.append(file.as_posix())
+                ffprobe_command.append(file)
 
                 # Run ffprobe
                 ffprobe_output = subprocess.run(ffprobe_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -67,7 +79,7 @@ class CodecDetector:
                         video_information = VideoInformation.parse_raw(ffprobe_output.stdout)
                     except ValidationError as e:
                         # There was an error parsing the output from ffprobe
-                        logging.error(f"Error parsing {file.as_posix()}")
+                        logging.error(f"Error parsing {file}")
                         logging.error(e)
                         continue
 
@@ -104,7 +116,7 @@ class CodecDetector:
 
                     # Create a FileData object
                     file_data = FileData(
-                        filename=file.as_posix(),
+                        filename=file,
                         video_information=video_information,
                         conversion_required=conversion_required,
                         converting=False,
@@ -124,10 +136,10 @@ class CodecDetector:
                     )
 
                     # Append the FileData object to the list of bulk write operations
-                    bulk_write_operations.append(UpdateOne({"filename": file.as_posix()}, {"$set": file_data.dict()}, upsert=True))
+                    bulk_write_operations.append(UpdateOne({"filename": file}, {"$set": file_data.dict()}, upsert=True))
                 else:
                     # ffprobe failed
-                    logging.error(f"ffprobe failed for {file.as_posix()}")
+                    logging.error(f"ffprobe failed for {file}")
                     logging.error(ffprobe_output.stderr)
 
         if bulk_write_operations:
