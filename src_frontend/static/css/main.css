@@ -1,0 +1,71 @@
+.outer {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    height: 100vh;
+    /* margin: 0.5rem; */
+    padding: 0.5rem;
+    background-color: hsl(219, 79%, 98%);
+    border: 0.25rem solid white;
+}
+
+.main {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    background-color: hsl(219, 79%, 96%);
+    overflow-y: scroll;
+}
+
+.file-list-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    background-color: hsl(219, 79%, 94%);
+    margin: 0rem 0.25rem;
+    padding: 0.25rem;
+    overflow-y: scroll;
+}
+
+.file-list {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    overflow-y: scroll;
+}
+
+.progress-area {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 100%;
+    margin: 0rem 0.25rem;
+    padding: 0.25rem;
+}
+
+.filename {
+    padding: 0.25rem;
+}
+
+.conversion-progress {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    padding: 0.25rem;
+}
+
+#file-progress {
+    width: 100%;
+}
