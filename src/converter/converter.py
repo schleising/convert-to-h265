@@ -35,7 +35,7 @@ class Converter:
     def convert(self):
         # Get a file that needs to be converted from MongoDB
         db_file = media_collection.find_one({
-            "requires_conversion": True,
+            "conversion_required": True,
             "converting": False,
             "converted": False,
             "conversion_error": False
