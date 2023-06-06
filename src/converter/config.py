@@ -12,6 +12,7 @@ class Mongo(BaseModel):
 class Folders(BaseModel):
     include: list[Path]
     exclude: list[Path] | None
+    backup: Path
 
 class Schedule(BaseModel):
     timezone: str

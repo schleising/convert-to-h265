@@ -3,12 +3,13 @@ from pathlib import Path
 import logging
 import signal
 import sys
+import shutil
 
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
 
 from .models import FileData
-from . import media_collection
+from . import media_collection, config
 
 class Converter:
     def __init__(self):
@@ -101,7 +102,7 @@ class Converter:
                 media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
 
                 # Delete the output file
-                output_file_path.unlink()
+                output_file_path.unlink(missing_ok=True)
 
                 # Exit the application
                 sys.exit(0)
@@ -120,10 +121,25 @@ class Converter:
 
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
-                return
+
+                # Delete the output file
+                output_file_path.unlink(missing_ok=True)
             else:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {file_data.filename}")
+
+                # Create a path for the backup file
+                backup_path = Path(config.config_data.folders.backup, input_file_path.name)
+
+                # Copy the input file to the backup folder
+                logging.info(f'Copying {input_file_path} to backup folder')
+                shutil.copy2(input_file_path, backup_path)
+
+                # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
+                output_file_path = output_file_path.replace(input_file_path)
+
+                # Log that the copy and replace was successful
+                logging.info(f'File {input_file_path} backed up successfully')
 
                 # Update the file_data object
                 file_data.converting = False
@@ -131,7 +147,7 @@ class Converter:
                 file_data.conversion_error = False
                 file_data.end_conversion_time = datetime.now()
                 file_data.percentage_complete = 100
-                file_data.current_size = output_file_path.stat().st_size
+                file_data.current_size = input_file_path.stat().st_size
 
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})

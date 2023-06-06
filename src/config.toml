@@ -19,6 +19,9 @@
         "/Media/Films/VR",
     ]
 
+    # Folder to backup converted files to be checked before deletion
+    backup = "/Backup"
+
 # Schedule definitions
 [schedule]
     # The timezone to use for the schedule, all of the following times are in this timezone
