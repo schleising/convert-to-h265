@@ -12,25 +12,23 @@ from . import media_collection
 
 class Converter:
     def __init__(self):
-        self.temp_folder = Path("/temp_conversion")
-
-        self.ffmpeg: FFmpeg | None= None
+        self._ffmpeg: FFmpeg | None= None
 
         # Register signal handlers
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def signal_handler(self, sig: int, _):
+    def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
         match sig:
             case signal.SIGINT:
                 logging.info("Stopping Conversion due to keyboard interrupt...")
-                if self.ffmpeg is not None:
-                    self.ffmpeg.terminate()
+                if self._ffmpeg is not None:
+                    self._ffmpeg.terminate()
             case signal.SIGTERM:
                 logging.info("Stopping Conversion due to SIGTERM...")
-                if self.ffmpeg is not None:
-                    self.ffmpeg.terminate()
+                if self._ffmpeg is not None:
+                    self._ffmpeg.terminate()
 
     def convert(self):
         # Get a file that needs to be converted from MongoDB
@@ -62,7 +60,7 @@ class Converter:
             output_file_path = input_file_path.with_suffix(".hevc.mkv")
 
             # Convert the file
-            self.ffmpeg = (
+            self._ffmpeg = (
                 FFmpeg
                 .option(FFmpeg(), 'y')
                 .input(input_file_path)
@@ -77,7 +75,7 @@ class Converter:
             )
 
             # Update the progress bar when ffmpeg emits a progress event
-            @self.ffmpeg.on('progress')
+            @self._ffmpeg.on('progress')
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
                 # Calculate the percentage complete
                 duration = timedelta(seconds=file_data.video_information.format.duration)
@@ -89,11 +87,11 @@ class Converter:
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
 
-            @self.ffmpeg.on('terminated')
+            @self._ffmpeg.on('terminated')
             def _on_terminated() -> None:
                 # Log that ffmpeg was terminated and we are cleaning up
                 logging.info(f"ffmpeg was terminated for {file_data.filename}. Cleaning up...")
-                self.ffmpeg = None
+                self._ffmpeg = None
 
                 # Update the file_data object
                 file_data.converting = False
@@ -110,7 +108,7 @@ class Converter:
 
             try:
                 # Execute the ffmpeg command
-                self.ffmpeg.execute()
+                self._ffmpeg.execute()
             except FFmpegError as e:
                 # There was an error executing the ffmpeg command
                 logging.error(f"Error executing ffmpeg command for {file_data.filename}")
@@ -138,4 +136,4 @@ class Converter:
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
             finally:
-                self.ffmpeg = None
+                self._ffmpeg = None

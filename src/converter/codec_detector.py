@@ -11,10 +11,10 @@ from . import media_collection
 class CodecDetector:
     def __init__(self, files: dict[str, Path]) -> None:
         # List of files to detect the encoding of
-        self.files: dict[str, Path] = files
+        self._files: dict[str, Path] = files
 
         # The base command to run ffprobe
-        self.ffprobe_base_command = [
+        self._ffprobe_base_command = [
             "ffprobe",
             "-v", "quiet",
             "-print_format", "json",
@@ -30,14 +30,14 @@ class CodecDetector:
         list_from_db = [FileData(**data) for data in data_from_db]
 
         # Convert the list of FileData objects to a dictionary with the file path as the key
-        self.dict_from_db = {data.filename: data for data in list_from_db}
+        self._dict_from_db = {data.filename: data for data in list_from_db}
 
         # Remove files that have been deleted
         self._remove_deleted_files()
 
     def _remove_deleted_files(self) -> None:
         # If files have been deleted, remove them from the database
-        deleted_files = set(self.dict_from_db.keys()) - set(self.files.keys())
+        deleted_files = set(self._dict_from_db.keys()) - set(self._files.keys())
 
         if deleted_files:
             for file in deleted_files:
@@ -50,14 +50,14 @@ class CodecDetector:
 
         logging.info("Getting file encoding")
 
-        for file, path in self.files.items():
-            if file not in self.dict_from_db:
+        for file, path in self._files.items():
+            if file not in self._dict_from_db:
                 # File is not in the database, so we need to get the encoding
                 # First get the file size
                 file_size = path.stat().st_size
 
                 # Construct the ffprobe command
-                ffprobe_command = list(self.ffprobe_base_command)
+                ffprobe_command = list(self._ffprobe_base_command)
                 ffprobe_command.append(file)
 
                 # Run ffprobe

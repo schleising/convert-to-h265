@@ -6,7 +6,7 @@ from . import config
 class FolderWalker:
     def __init__(self) -> None:
         # List of paths to walk
-        self.paths: list[Path] = []
+        self._paths: list[Path] = []
 
         for path in config.config_data.folders.include:
             # Check if the path is a directory
@@ -15,14 +15,14 @@ class FolderWalker:
                 logging.error(f"{path} is not a directory")
             else:
                 # If it is a directory, add it to the list of paths to walk
-                self.paths.append(path)
+                self._paths.append(path)
 
         # List of files found
         self._files: list[Path] = []
 
     def walk_folders(self) -> None:
         # Walk each path
-        for path in self.paths:
+        for path in self._paths:
             self._walk(path)
 
     def _walk(self, path: Path) -> None:
@@ -44,4 +44,4 @@ class FolderWalker:
                     self._files.append(file)
 
         # Turn the list of files into a dict with filename as the key
-        self.files = {file.as_posix(): file for file in self._files}
+        self.files_dict = {file.as_posix(): file for file in self._files}
