@@ -7,7 +7,7 @@ services:
     depends_on:
       - mongodb
     volumes:
-      - ./src:/src:ro
+      - ./src_backend:/src:ro
     restart: no
     extra_hosts:
         - "host.docker.internal:host-gateway"
