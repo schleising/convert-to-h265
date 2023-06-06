@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 # Initialise logging
 logging.basicConfig(format='Website: %(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -12,6 +13,9 @@ TEMPLATES = Jinja2Templates('/src/templates')
 
 # Instantiate the application object, ensure every request sets the user into Request.state.user
 app = FastAPI()
+
+# Mount the static files
+app.mount('/static', StaticFiles(directory='/src/static'), name='static')
 
 # Gets the homepage
 @app.get('/', response_class=HTMLResponse)
