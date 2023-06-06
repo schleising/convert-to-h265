@@ -12,11 +12,24 @@ services:
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
+  frontend:
+    build: frontend
+    hostname: frontend
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src_frontend:/src:ro
+    ports:
+      - 8020:8020
+    restart: no
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
   mongodb:
     image: mongo:4.4.18
     hostname: mongodb
     ports:
-      - 27017:27017
+      - 27018:27017
     volumes:
       - db_volume:/data/db:rw
       - db_conf:/data/configdb:rw
