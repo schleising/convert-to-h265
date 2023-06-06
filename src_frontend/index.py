@@ -5,8 +5,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
+from .database.database import Database
+
 # Initialise logging
 logging.basicConfig(format='Website: %(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Initialise the database
+database = Database()
 
 # Set the base template location
 TEMPLATES = Jinja2Templates('/src/templates')
