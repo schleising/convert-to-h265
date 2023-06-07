@@ -8,9 +8,6 @@ def _close_mongo_connection() -> None:
     _client.close()
     logging.info("Closed MongoDB connection")
 
-# Set logging level and format
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
-
 # Connect to MongoDB
 _client = MongoClient("mongodb://mongodb:27017/")
 logging.info("Connected to MongoDB")
