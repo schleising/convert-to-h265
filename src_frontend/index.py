@@ -60,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         # Create a ConvertingFileMessage from the database object
                         current_conversion_status = ConvertingFileMessage(
                             filename=current_conversion_status_db.filename,
-                            progress=int(current_conversion_status_db.percentage_complete)
+                            progress=current_conversion_status_db.percentage_complete
                         )
 
                         # Create a Message from the ConvertingFileMessage

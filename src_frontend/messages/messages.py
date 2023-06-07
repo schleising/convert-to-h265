@@ -9,7 +9,7 @@ class MessageTypes(str, Enum):
 
 class ConvertingFileMessage(BaseModel):
     filename: str
-    progress: int
+    progress: float
 
 class FilesToConvertMessage(BaseModel):
     filenames: list[str]
