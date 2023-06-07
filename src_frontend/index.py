@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from .database.database import Database
 
 # Initialise logging
-logging.basicConfig(format='Website: %(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Initialise the database
 database = Database()
@@ -27,10 +27,3 @@ app.mount('/static', StaticFiles(directory='/src/static'), name='static')
 async def root(request: Request):
     logging.info('Homepage requested')
     return TEMPLATES.TemplateResponse('index.html', {'request': request})
-
-# Close the connection when the app shuts down
-# @app.on_event('shutdown')
-# def close_db_connection() -> None:
-#     print('Closing DB Connection')
-#     MONGODB.client.close()
-#     print('Closed DB Connection')

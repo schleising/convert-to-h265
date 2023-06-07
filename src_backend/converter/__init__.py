@@ -14,7 +14,7 @@ def _close_mongo_connection() -> None:
 config = Config()
 
 # Set logging level and format
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Connect to MongoDB
 _client = MongoClient(config.config_data.mongo.uri)
