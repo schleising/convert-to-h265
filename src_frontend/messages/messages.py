@@ -18,4 +18,4 @@ class ConvertedFilesMessage(BaseModel):
 
 class Message(BaseModel):
     messageType: MessageTypes
-    messageBody: ConvertingFileMessage | FilesToConvertMessage | ConvertedFilesMessage
+    messageBody: ConvertingFileMessage | FilesToConvertMessage | ConvertedFilesMessage | None

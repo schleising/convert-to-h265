@@ -49,11 +49,47 @@ function openWebSocket() {
 
                 // Check whether conversion status is null
                 if (conversionStatus == null) {
+                    // Set the innerHTML of the filename element to "No file being converted"
                     document.getElementById("filename").innerHTML = "No file being converted";
+
+                    // Set the value of the file-progress element to 0
                     document.getElementById("file-progress").value = 0;
                 } else {
+                    // Set the innerHTML of the filename element to the filename
                     document.getElementById("filename").innerHTML = conversionStatus.filename;
+
+                    // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;
+                }
+                break;
+            case 'files_to_convert':
+                // Get the files to convert
+                filesToConvert = message.messageBody;
+
+                // Check whether files to convert is null
+                if (filesToConvert.filenames == null) {
+                    document.getElementById("files-to-convert").innerHTML = "No files to convert";
+                } else {
+                    // Convert the list of files to convert to a string with a new line between each file
+                    filesToConvertString = filesToConvert.filenames.join("<br>");
+
+                    // Set the innerHTML of the files-to-convert element to the string
+                    document.getElementById("files-to-convert").innerHTML = filesToConvertString;
+                }
+                break;
+            case 'converted_files':
+                // Get the files converted
+                filesConverted = message.messageBody;
+
+                // Check whether files converted is null
+                if (filesConverted.filenames == null) {
+                    document.getElementById("converted-files").innerHTML = "No files converted";
+                } else {
+                    // Convert the list of files converted to a string with a new line between each file
+                    filesConvertedString = filesConverted.filenames.join("<br>");
+
+                    // Set the innerHTML of the converted-files element to the string
+                    document.getElementById("converted-files").innerHTML = filesConvertedString;
                 }
                 break;
             default:

@@ -25,7 +25,7 @@ class Database:
     async def get_converted_files(self) -> list[str]:
         # Get a file that needs to be converted from MongoDB
         db_file_cursor = media_collection.find({
-            "conversion_required": False,
+            "conversion_required": True,
             "converting": False,
             "converted": True,
             "conversion_error": False
