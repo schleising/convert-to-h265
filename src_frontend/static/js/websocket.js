@@ -92,6 +92,58 @@ function openWebSocket() {
                     document.getElementById("converted-files").innerHTML = filesConvertedString;
                 }
                 break;
+            case 'statistics':
+                // Get the statistics
+                statistics = message.messageBody;
+
+                // Check whether statistics is null
+                if (statistics == null) {
+                    // Set the innerHTML of the statistics element to "No statistics"
+                    document.getElementById("statistics").innerHTML = "No statistics";
+                } else {
+                    // Clear the statistics element
+                    document.getElementById("statistics").innerHTML = "";
+
+                    // Loop through the statistics
+                    for ([key, value] of Object.entries(statistics)) {
+                        switch (key) {
+                            case 'total_files':
+                                key = "Total Files: ";
+                                break;
+                            case 'total_converted':
+                                key = "Total Files Converted: ";
+                                break;
+                            case 'total_to_convert':
+                                key = "Total Files to Convert: ";
+                                break;
+                            case 'gigabytes_before_conversion':
+                                key = "GB Before Conversion: ";
+                                value = value + " GB";
+                                break;
+                            case 'gigabytes_after_conversion':
+                                key = "GB After Conversion: ";
+                                value = value + " GB";
+                                break;
+                            case 'gigabytes_saved':
+                                key = "GB Saved: ";
+                                value = value + " GB";
+                                break;
+                            case 'percentage_saved':
+                                key = "Percentage Saved: ";
+                                value = value + "%";
+                                break;
+                            default:
+                                console.log("Unknown key: " + key);
+                        }
+
+                        // Create the statistics element
+                        statisticsElement = createStatisticsElement(key, value);
+
+                        // Append the statistics element to the statistics element
+                        document.getElementById("statistics").appendChild(statisticsElement);
+                    }
+                }
+                break;
             default:
                 console.log("Unknown message type received: " + event.data.messageType);
         }

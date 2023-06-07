@@ -21,7 +21,7 @@
     overflow-y: scroll;
 }
 
-.file-list-container {
+.data-container {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -41,6 +41,30 @@
     width: 100%;
     height: 100%;
     overflow-y: scroll;
+}
+
+.statistics {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.data-list {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.data-key {
+    width: 100%;
+}
+
+.data-value {
+    width: 100%;
 }
 
 .progress-area {

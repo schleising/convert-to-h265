@@ -5,6 +5,7 @@ class MessageTypes(str, Enum):
     CONVERTING_FILE = "converting_file"
     FILES_TO_CONVERT = "files_to_convert"
     CONVERTED_FILES = "converted_files"
+    STATISTICS = "statistics"
 
 class ConvertingFileMessage(BaseModel):
     filename: str
@@ -16,6 +17,15 @@ class FilesToConvertMessage(BaseModel):
 class ConvertedFilesMessage(BaseModel):
     filenames: list[str]
 
+class StatisticsMessage(BaseModel):
+    total_files: int
+    total_converted: int
+    total_to_convert: int
+    gigabytes_before_conversion: float
+    gigabytes_after_conversion: float
+    gigabytes_saved: float
+    percentage_saved: int
+
 class Message(BaseModel):
     messageType: MessageTypes
-    messageBody: ConvertingFileMessage | FilesToConvertMessage | ConvertedFilesMessage | None
+    messageBody: ConvertingFileMessage | FilesToConvertMessage | ConvertedFilesMessage | StatisticsMessage | None

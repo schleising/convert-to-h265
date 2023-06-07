@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from .database.database import Database
-from .messages.messages import ConvertingFileMessage, FilesToConvertMessage, ConvertedFilesMessage, MessageTypes, Message
+from .messages.messages import ConvertingFileMessage, FilesToConvertMessage, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
 
 # Initialise the database
 database = Database()
@@ -140,6 +140,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
                         # Send the files converted
                         await websocket.send_json(message.dict())
+
+                    # Get the statistics
+                    statistics = await database.get_statistics()
+
+                    # Create a Message from the StatisticsMessage
+                    message = Message(
+                        messageType=MessageTypes.STATISTICS,
+                        messageBody=statistics
+                    )
+
+                    # Log the statistics
+                    logging.debug(f'Statistics: {message}')
+
+                    # Send the statistics
+                    await websocket.send_json(message.dict())
 
                 case _:
                     # Log an error
