@@ -56,7 +56,7 @@ function openWebSocket() {
                     document.getElementById("file-progress").value = 0;
                 } else {
                     // Set the innerHTML of the filename element to the filename
-                    document.getElementById("filename").innerHTML = conversionStatus.filename;
+                    document.getElementById("filename").innerHTML = "Currently Converting: " + conversionStatus.filename;
 
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;

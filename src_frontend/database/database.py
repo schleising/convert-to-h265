@@ -1,3 +1,4 @@
+from pathlib import Path
 from .models import FileData
 from ..messages.messages import StatisticsMessage
 from . import media_collection
@@ -18,7 +19,7 @@ class Database:
         db_file_list = await db_file_cursor.to_list(length=None)
 
         # Convert the list of FileData objects to a list of file paths
-        file_list = [FileData(**data).filename for data in db_file_list]
+        file_list = [Path(FileData(**data).filename).name for data in db_file_list]
 
         return file_list
     
@@ -34,7 +35,7 @@ class Database:
         db_file_list = await db_file_cursor.to_list(length=None)
 
         # Convert the list of FileData objects to a list of file paths
-        file_list = [FileData(**data).filename for data in db_file_list]
+        file_list = [Path(FileData(**data).filename).name for data in db_file_list]
 
         return file_list
     
