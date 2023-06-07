@@ -38,6 +38,12 @@ async def websocket_endpoint(websocket: WebSocket):
     # Log the connection
     logging.info('Websocket Opened')
 
+    # Log the last file converted
+    last_file_converted = None
+
+    # Boolean to determine if this is a new file
+    new_file = False
+
     try:
         # Loop forever
         while True:
@@ -63,6 +69,19 @@ async def websocket_endpoint(websocket: WebSocket):
                             progress=current_conversion_status_db.percentage_complete
                         )
 
+                        if last_file_converted is None or last_file_converted != current_conversion_status.filename:
+                            # Set the last file converted
+                            last_file_converted = current_conversion_status.filename
+
+                            # Log the last file converted
+                            logging.info(f'Last file converted: {last_file_converted}')
+
+                            # Set new file to True
+                            new_file = True
+                        else:
+                            # Set new file to False
+                            new_file = False
+
                         # Create a Message from the ConvertingFileMessage
                         message = Message(
                             messageType=MessageTypes.CONVERTING_FILE,
@@ -81,60 +100,56 @@ async def websocket_endpoint(websocket: WebSocket):
                             messageBody=None
                         ).dict())
 
-                    # Get the files to convert
-                    files_to_convert = await database.get_files_to_convert()
+                    # If this is a new file, send the files to convert, converted files and statistics
+                    if new_file:
+                        # Get the files to convert
+                        files_to_convert = await database.get_files_to_convert()
 
-                    # Create a FilesToConvertMessage from the database objects
-                    files_to_convert_message = FilesToConvertMessage(
-                        filenames=files_to_convert
-                    )
+                        # Create a FilesToConvertMessage from the database objects
+                        files_to_convert_message = FilesToConvertMessage(
+                            filenames=files_to_convert
+                        )
 
-                    # Create a Message from the FilesToConvertMessage
-                    message = Message(
-                        messageType=MessageTypes.FILES_TO_CONVERT,
-                        messageBody=files_to_convert_message
-                    )
+                        # Create a Message from the FilesToConvertMessage
+                        message = Message(
+                            messageType=MessageTypes.FILES_TO_CONVERT,
+                            messageBody=files_to_convert_message
+                        )
 
-                    # Log the files to convert
-                    logging.debug(f'Files to convert: {message}')
+                        # Send the files to convert
+                        await websocket.send_json(message.dict())
 
-                    # Send the files to convert
-                    await websocket.send_json(message.dict())
+                        # Get the files converted
+                        files_converted = await database.get_converted_files()
 
-                    # Get the files converted
-                    files_converted = await database.get_converted_files()
+                        # Create a ConvertedFilesMessage from the database objects
+                        files_converted_message = ConvertedFilesMessage(
+                            filenames=files_converted
+                        )
 
-                    # Create a ConvertedFilesMessage from the database objects
-                    files_converted_message = ConvertedFilesMessage(
-                        filenames=files_converted
-                    )
+                        # Create a Message from the ConvertedFilesMessage
+                        message = Message(
+                            messageType=MessageTypes.CONVERTED_FILES,
+                            messageBody=files_converted_message
+                        )
 
-                    # Create a Message from the ConvertedFilesMessage
-                    message = Message(
-                        messageType=MessageTypes.CONVERTED_FILES,
-                        messageBody=files_converted_message
-                    )
+                        # Send the files converted
+                        await websocket.send_json(message.dict())
 
-                    # Log the files converted
-                    logging.debug(f'Files converted: {message}')
+                        # Get the statistics
+                        statistics = await database.get_statistics()
 
-                    # Send the files converted
-                    await websocket.send_json(message.dict())
+                        # Create a Message from the StatisticsMessage
+                        message = Message(
+                            messageType=MessageTypes.STATISTICS,
+                            messageBody=statistics
+                        )
 
-                    # Get the statistics
-                    statistics = await database.get_statistics()
+                        # Log the statistics
+                        logging.debug(f'Statistics: {message}')
 
-                    # Create a Message from the StatisticsMessage
-                    message = Message(
-                        messageType=MessageTypes.STATISTICS,
-                        messageBody=statistics
-                    )
-
-                    # Log the statistics
-                    logging.debug(f'Statistics: {message}')
-
-                    # Send the statistics
-                    await websocket.send_json(message.dict())
+                        # Send the statistics
+                        await websocket.send_json(message.dict())
 
                 case _:
                     # Log an error

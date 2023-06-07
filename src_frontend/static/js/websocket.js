@@ -4,9 +4,6 @@ var ws;
 // Variable which will contain the websocket url
 var url;
 
-// Variable for the periodic task
-var intervalId = null;
-
 // Add a callback for state changes
 document.addEventListener('readystatechange', event => {
     if (event.target.readyState === "complete") {
@@ -61,6 +58,10 @@ function openWebSocket() {
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;
                 }
+
+                // Can call checkSocketAndSendMessage here, now the statistics message has been received and the server has responded
+                setTimeout(checkSocketAndSendMessage, 1000);
+
                 break;
             case 'files_to_convert':
                 // Get the files to convert
@@ -151,12 +152,7 @@ function openWebSocket() {
 
     // Add the event listener
     ws.addEventListener('open', (event) => {
-        console.log("Setting Interval")
-        if (intervalId != null) {
-            clearInterval(intervalId);
-        }
-        intervalId = setInterval(checkSocketAndSendMessage, 1000);
-        checkSocketAndSendMessage();
+        sendMessage(event);
     });
 };
 
