@@ -53,7 +53,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_text(json.dumps({'messageType': 'pong'}))
                 
                 case _:
-                    # Send an error message
+                    # Log an error
                     logging.error(f'Unknown message type: {msg["messageType"]}')
 
 
