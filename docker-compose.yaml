@@ -8,7 +8,7 @@ services:
       - mongodb
     volumes:
       - ./src_backend:/src:ro
-    restart: no
+    restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
@@ -21,7 +21,7 @@ services:
       - ./src_frontend:/src:ro
     ports:
       - 8020:8020
-    restart: no
+    restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
@@ -33,7 +33,7 @@ services:
     volumes:
       - db_volume:/data/db:rw
       - db_conf:/data/configdb:rw
-    restart: no
+    restart: "no"
     
 volumes:
   db_volume:
