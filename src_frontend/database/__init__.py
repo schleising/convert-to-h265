@@ -1,7 +1,11 @@
 import logging
 import atexit
 
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
+
+# Type aliases to avoid Pylance errors
+AIOMDB = AsyncIOMotorDatabase
+AIOMC = AsyncIOMotorCollection
 
 def _close_mongo_connection() -> None:
     # This function will be registered with atexit to close the MongoDB connection when the program exits
@@ -9,14 +13,15 @@ def _close_mongo_connection() -> None:
     logging.info("Closed MongoDB connection")
 
 # Connect to MongoDB
-_client = MongoClient("mongodb://mongodb:27017/")
+_client = AsyncIOMotorClient("mongodb://mongodb:27017/")
+
 logging.info("Connected to MongoDB")
 
 # Register the close_mongo_connection function to run at exit
 atexit.register(_close_mongo_connection)
 
 # Get the database
-_db = _client["media"]
+_db: AIOMDB = _client["media"]
 
 # Get the media collection
-media_collection = _db["media_collection"]
+media_collection: AIOMC = _db["media_collection"]

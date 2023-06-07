@@ -43,7 +43,18 @@ function openWebSocket() {
         message = JSON.parse(event.data);
 
         switch (message.messageType) {
-            case 'pong':
+            case 'converting_file':
+                // Get the conversion status
+                conversionStatus = message.messageBody;
+
+                // Check whether conversion status is null
+                if (conversionStatus == null) {
+                    document.getElementById("filename").innerHTML = "No file being converted";
+                    document.getElementById("file-progress").value = 0;
+                } else {
+                    document.getElementById("filename").innerHTML = conversionStatus.filename;
+                    document.getElementById("file-progress").value = conversionStatus.progress;
+                }
                 break;
             default:
                 console.log("Unknown message type received: " + event.data.messageType);

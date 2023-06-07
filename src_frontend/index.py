@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import logging
 import json
 
@@ -10,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from .database.database import Database
+from .messages.messages import ConvertingFileMessage, FilesToConvertMessage, ConvertedFilesMessage, MessageTypes, Message
 
 # Initialise the database
 database = Database()
@@ -31,11 +33,20 @@ async def root(request: Request):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # Accept the websocket connection
     await websocket.accept()
 
+    # Log the connection
     logging.info('Websocket Opened')
 
+    # Initialise a variable to store the last time the files to convert was updated
+    last_files_to_convert_update: datetime | None = None
+
+    # Initialise a variable to store the last time the files converted was updated
+    last_files_converted_update: datetime | None = None
+
     try:
+        # Loop forever
         while True:
             # Wait for a message from the client
             recv = await websocket.receive_text()
@@ -49,13 +60,39 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Log the ping
                     logging.debug('Ping received')
 
-                    # Send a pong message
-                    await websocket.send_text(json.dumps({'messageType': 'pong'}))
-                
+                    # Get the current conversion status
+                    current_conversion_status_db = await database.get_converting_file()
+
+                    # logging.debug(f'Current conversion status: {current_conversion_status_db}')
+
+                    if current_conversion_status_db is not None:
+                        # Create a ConvertingFileMessage from the database object
+                        current_conversion_status = ConvertingFileMessage(
+                            filename=current_conversion_status_db.filename,
+                            progress=int(current_conversion_status_db.percentage_complete)
+                        )
+
+                        message = Message(
+                            messageType=MessageTypes.CONVERTING_FILE,
+                            messageBody=current_conversion_status
+                        )
+
+                        logging.debug(f'Current conversion status: {message}')
+
+                        # Send the conversion status
+                        await websocket.send_json(message.dict())
+                    else:
+                        # Send the conversion status
+                        await websocket.send_text(json.dumps({
+                            'messageType': 'conversionStatus',
+                            'messageBody': None
+                        }))
+
                 case _:
                     # Log an error
                     logging.error(f'Unknown message type: {msg["messageType"]}')
 
 
     except WebSocketDisconnect:
+        # Log the disconnection
         logging.info('Websocket Closed')
