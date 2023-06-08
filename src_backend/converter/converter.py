@@ -112,7 +112,8 @@ class Converter:
                         'c:v': 'libx265',
                         'c:a': 'copy',
                         'c:s': 'copy',
-                        'preset': 'slow',
+                        'crf': 28,
+                        'preset': 'medium',
                     }
                 )
             )
