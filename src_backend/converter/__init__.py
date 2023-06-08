@@ -2,6 +2,7 @@ import logging
 import atexit
 
 from pymongo import MongoClient, ASCENDING
+from bson.codec_options import CodecOptions
 
 from .config import Config
 
@@ -27,7 +28,7 @@ atexit.register(_close_mongo_connection)
 _db = _client[config.config_data.mongo.database]
 
 # Get the media collection
-media_collection = _db[config.config_data.mongo.media_collection]
+media_collection = _db.get_collection("media_collection", codec_options=CodecOptions(tz_aware=True))
 media_collection.create_index([("filename", ASCENDING)], unique=True)
 
 # Import TaskScheduler to make it available directly from the converter package

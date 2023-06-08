@@ -3,6 +3,8 @@ import atexit
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
+from bson.codec_options import CodecOptions
+
 # Type aliases to avoid Pylance errors
 AIOMDB = AsyncIOMotorDatabase
 AIOMC = AsyncIOMotorCollection
@@ -24,4 +26,4 @@ atexit.register(_close_mongo_connection)
 _db: AIOMDB = _client["media"]
 
 # Get the media collection
-media_collection: AIOMC = _db["media_collection"]
+media_collection: AIOMC = _db.get_collection("media_collection", codec_options=CodecOptions(tz_aware=True))
