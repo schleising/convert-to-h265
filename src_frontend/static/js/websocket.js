@@ -184,13 +184,12 @@ function openWebSocket() {
 
 function checkSocketAndSendMessage(event) {
     // Send the messsage, checking that the socket is open
-    // If the socket is not open, open a new one and wait for it to be ready
-    if (ws.readyState != WebSocket.OPEN) {
-        // Open the new socket
-        openWebSocket();
-    } else {
-        // If the socket is already open, just send the message
+    if (ws.readyState == WebSocket.OPEN) {
+        // If the socket is open send the message
         sendMessage(event);
+    } else if (ws.readyState != WebSocket.CONNECTING) {
+        // If the socket is not open or connecting, open a new socket
+        openWebSocket();
     }
 };
 
