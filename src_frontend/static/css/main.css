@@ -9,6 +9,10 @@
     border: 0.25rem solid white;
 }
 
+.header {
+    padding: 0.25rem;
+}
+
 .main {
     display: flex;
     flex-direction: row;
