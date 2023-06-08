@@ -1,5 +1,6 @@
 import logging
 import json
+from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -66,7 +67,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                         # Create a ConvertingFileMessage from the database object
                         current_conversion_status = ConvertingFileMessage(
-                            filename=current_conversion_status_db.filename,
+                            filename=Path(current_conversion_status_db.filename).name,
                             progress=current_conversion_status_db.percentage_complete,
                             time_remaining=time_remaining
                         )
