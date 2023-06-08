@@ -63,21 +63,6 @@ function openWebSocket() {
                 setTimeout(checkSocketAndSendMessage, 1000);
 
                 break;
-            case 'files_to_convert':
-                // Get the files to convert
-                filesToConvert = message.messageBody;
-
-                // Check whether files to convert is null
-                if (filesToConvert.filenames == null) {
-                    document.getElementById("files-to-convert").innerHTML = "No files to convert";
-                } else {
-                    // Convert the list of files to convert to a string with a new line between each file
-                    filesToConvertString = filesToConvert.filenames.join("<br>");
-
-                    // Set the innerHTML of the files-to-convert element to the string
-                    document.getElementById("files-to-convert").innerHTML = filesToConvertString;
-                }
-                break;
             case 'converted_files':
                 // Get the files converted
                 filesConverted = message.messageBody;

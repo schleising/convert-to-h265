@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 from .models import FileData
 from ..messages.messages import StatisticsMessage
@@ -7,31 +8,19 @@ class Database:
     def __init__(self) -> None:
         pass
 
-    async def get_files_to_convert(self) -> list[str]:
-        # Get a file that needs to be converted from MongoDB
-        db_file_cursor = media_collection.find({
-            "conversion_required": True,
-            "converting": False,
-            "converted": False,
-            "conversion_error": False
-        })
-
-        db_file_list = await db_file_cursor.to_list(length=None)
-
-        # Convert the list of FileData objects to a list of file paths
-        file_list = [Path(FileData(**data).filename).name for data in db_file_list]
-
-        return file_list
-    
     async def get_converted_files(self) -> list[str]:
-        # Get a file that needs to be converted from MongoDB
+        # Find files that have been converted in the last week
         db_file_cursor = media_collection.find({
             "conversion_required": True,
             "converting": False,
             "converted": True,
-            "conversion_error": False
+            "conversion_error": False,
+            "end_conversion_time": {
+                "$gte": datetime.now() - timedelta(days=7)
+            }
         })
 
+        # Convert the cursor to a list
         db_file_list = await db_file_cursor.to_list(length=None)
 
         # Convert the list of FileData objects to a list of file paths
