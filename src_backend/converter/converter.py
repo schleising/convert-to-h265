@@ -13,7 +13,14 @@ from . import media_collection, config
 
 class Converter:
     def __init__(self):
-        self._ffmpeg: FFmpeg | None= None
+        # Create ffmpeg object and set it to None
+        self._ffmpeg: FFmpeg | None = None
+
+        # Create file_data object and set it to None
+        self._file_data: FileData | None = None
+
+        # Create output file path and set it to None
+        self._output_file_path: Path | None = None
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -24,12 +31,47 @@ class Converter:
         match sig:
             case signal.SIGINT:
                 logging.info("Stopping Conversion due to keyboard interrupt...")
-                if self._ffmpeg is not None:
-                    self._ffmpeg.terminate()
+                self._cleanup_and_terminate()
             case signal.SIGTERM:
                 logging.info("Stopping Conversion due to SIGTERM...")
-                if self._ffmpeg is not None:
-                    self._ffmpeg.terminate()
+                self._cleanup_and_terminate()
+
+    def _cleanup_and_terminate(self) -> None:
+        if self._file_data is not None:
+            # Log that ffmpeg was terminated and we are cleaning up
+            logging.info(f"ffmpeg terminating for {self._file_data.filename}. Cleaning up...")
+
+            # Update the file_data object
+            self._file_data.converting = False
+            self._file_data.start_conversion_time = None
+            self._file_data.percentage_complete = 0
+
+            # Update the file in MongoDB
+            media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+
+            # Set the file_data object to None
+            self._file_data = None
+
+        # Delete the output file
+        if self._output_file_path is not None:
+            self._output_file_path.unlink(missing_ok=True)
+
+            # Set the output file path to None
+            self._output_file_path = None
+
+        if self._ffmpeg is not None:
+            # Terminate ffmpeg
+            try:
+                self._ffmpeg.terminate()
+            except FFmpegError as e:
+                pass
+
+            # Set ffmpeg to None
+            self._ffmpeg = None
+
+        # Exit the application
+        sys.exit(0)
+
 
     def convert(self):
         # Get a file that needs to be converted from MongoDB
@@ -42,30 +84,30 @@ class Converter:
 
         if db_file is not None:
             # Convert db_file into a FileData object
-            file_data = FileData(**db_file)
+            self._file_data = FileData(**db_file)
 
             # Log that we are converting the file
-            logging.info(f"Converting {file_data.filename}")
+            logging.info(f"Converting {self._file_data.filename}")
 
             # Update the file_data object
-            file_data.converting = True
-            file_data.start_conversion_time = datetime.now()
+            self._file_data.converting = True
+            self._file_data.start_conversion_time = datetime.now()
 
             # Update the file in MongoDB
-            media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
+            media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
 
             # Turn the filename into a path
-            input_file_path = Path(file_data.filename)
+            input_file_path = Path(self._file_data.filename)
 
             # Create the output file path
-            output_file_path = input_file_path.with_suffix(".hevc.mkv")
+            self._output_file_path = input_file_path.with_suffix(".hevc.mkv")
 
             # Convert the file
             self._ffmpeg = (
                 FFmpeg
                 .option(FFmpeg(), 'y')
                 .input(input_file_path)
-                .output(output_file_path,
+                .output(self._output_file_path,
                     {
                         'c:v': 'libx265',
                         'c:a': 'copy',
@@ -78,55 +120,36 @@ class Converter:
             # Update the progress bar when ffmpeg emits a progress event
             @self._ffmpeg.on('progress')
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
-                # Calculate the percentage complete
-                duration = timedelta(seconds=file_data.video_information.format.duration)
-                percentage_complete = (ffmpeg_progress.time / duration) * 100
+                if self._file_data is not None:
+                    # Calculate the percentage complete
+                    duration = timedelta(seconds=self._file_data.video_information.format.duration)
+                    percentage_complete = (ffmpeg_progress.time / duration) * 100
 
-                # Update the file_data object
-                file_data.percentage_complete = percentage_complete
+                    # Update the self._file_data object
+                    self._file_data.percentage_complete = percentage_complete
 
-                # Update the file in MongoDB
-                media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
+                    # Update the file in MongoDB
+                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
 
             @self._ffmpeg.on('terminated')
             def _on_terminated() -> None:
-                # Log that ffmpeg was terminated and we are cleaning up
-                logging.info(f"ffmpeg was terminated for {file_data.filename}. Cleaning up...")
-                self._ffmpeg = None
-
-                # Update the file_data object
-                file_data.converting = False
-                file_data.start_conversion_time = None
-
-                # Update the file in MongoDB
-                media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
-
-                # Delete the output file
-                output_file_path.unlink(missing_ok=True)
-
-                # Exit the application
-                sys.exit(0)
+                if self._file_data is not None:
+                    # Log that ffmpeg was terminated
+                    logging.info(f"ffmpeg was terminated successfullty for {self._file_data.filename}")
 
             try:
                 # Execute the ffmpeg command
                 self._ffmpeg.execute()
             except FFmpegError as e:
                 # There was an error executing the ffmpeg command
-                logging.error(f"Error executing ffmpeg command for {file_data.filename}")
+                logging.error(f"Error executing ffmpeg command for {self._file_data.filename}")
                 logging.error(e)
 
-                # Update the file_data object
-                file_data.converting = False
-                file_data.start_conversion_time = None
-
-                # Update the file in MongoDB
-                media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
-
-                # Delete the output file
-                output_file_path.unlink(missing_ok=True)
+                # Clean up and terminate
+                self._cleanup_and_terminate()
             else:
                 # ffmpeg executed successfully
-                logging.info(f"Successfully converted {file_data.filename}")
+                logging.info(f"Successfully converted {self._file_data.filename}")
 
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
@@ -136,20 +159,18 @@ class Converter:
                 shutil.copy2(input_file_path, backup_path)
 
                 # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
-                output_file_path = output_file_path.replace(input_file_path)
+                self._output_file_path = self._output_file_path.replace(input_file_path)
 
                 # Log that the copy and replace was successful
                 logging.info(f'File {input_file_path} backed up successfully')
 
                 # Update the file_data object
-                file_data.converting = False
-                file_data.converted = True
-                file_data.conversion_error = False
-                file_data.end_conversion_time = datetime.now()
-                file_data.percentage_complete = 100
-                file_data.current_size = input_file_path.stat().st_size
+                self._file_data.converting = False
+                self._file_data.converted = True
+                self._file_data.conversion_error = False
+                self._file_data.end_conversion_time = datetime.now()
+                self._file_data.percentage_complete = 100
+                self._file_data.current_size = input_file_path.stat().st_size
 
                 # Update the file in MongoDB
-                media_collection.update_one({"filename": file_data.filename}, {"$set": file_data.dict()})
-            finally:
-                self._ffmpeg = None
+                media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
