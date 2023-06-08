@@ -4,7 +4,6 @@
     justify-content: space-between;
     align-items: flex-start;
     height: 100vh;
-    /* margin: 0.5rem; */
     padding: 0.5rem;
     background-color: hsl(219, 79%, 98%);
     border: 0.25rem solid white;
@@ -73,8 +72,7 @@
     justify-content: flex-start;
     align-items: flex-start;
     width: 100%;
-    margin: 0rem 0.25rem;
-    padding: 0.25rem;
+    padding: 0.25rem 0.25rem;
 }
 
 .filename {
@@ -87,9 +85,19 @@
     justify-content: flex-start;
     align-items: center;
     width: 100%;
-    padding: 0.25rem;
+    padding: 0.25rem 0rem;
 }
 
 #file-progress {
     width: 100%;
+}
+
+@media screen and (max-width: 40rem) {
+    .main {
+        flex-direction: column;
+    }
+
+    .data-container {
+        margin: 0.25rem 0rem;
+    }
 }
