@@ -70,6 +70,7 @@ function openWebSocket() {
                     document.getElementById("filename").innerHTML = "Currently Converting: " + 
                         conversionStatus.filename + "<br>" + 
                         "Complete: " + conversionStatus.progress.toFixed(2) + "%" + "<br>" +
+                        "Time Since Start: " + conversionStatus.time_since_start + "<br>" +
                         "Time Remaining: " + conversionStatus.time_remaining;
 
                     // Set the value of the file-progress element to the progress

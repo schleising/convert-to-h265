@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 import logging
 import json
 from pathlib import Path
@@ -59,6 +60,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_conversion_status_db = await database.get_converting_file()
 
                     if current_conversion_status_db is not None:
+                        # Get the time since the conversion started
+                        if current_conversion_status_db.start_conversion_time is not None:
+                            time_since_start = datetime.now().astimezone(UTC) - current_conversion_status_db.start_conversion_time
+                        else:
+                            time_since_start = timedelta(seconds=0)
+
+                        # Convert the time since the conversion started to a string discarding the microseconds
+                        time_since_start_str = str(time_since_start).split('.')[0]
+
                         # Get the conversion time remaining
                         time_remaining = calculate_time_remaining(
                             start_time=current_conversion_status_db.start_conversion_time,
@@ -69,6 +79,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         current_conversion_status = ConvertingFileMessage(
                             filename=Path(current_conversion_status_db.filename).name,
                             progress=current_conversion_status_db.percentage_complete,
+                            time_since_start=time_since_start_str,
                             time_remaining=time_remaining
                         )
 

@@ -10,6 +10,7 @@ class MessageTypes(str, Enum):
 class ConvertingFileMessage(BaseModel):
     filename: str
     progress: float
+    time_since_start: str
     time_remaining: str
 
 class FilesToConvertMessage(BaseModel):
