@@ -126,6 +126,38 @@ class Database:
             # If there are no files in the database, set the percentage saved to 0
             percentage_saved = 0
 
+        # Get the total conversion time from the database
+        total_conversion_time_db = await media_collection.aggregate([
+            {
+                "$match": {
+                    "converted": True
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {
+                        "$sum": {
+                            "$subtract": [
+                                "$end_conversion_time",
+                                "$start_conversion_time"
+                            ]
+                        }
+                    }
+                }
+            }
+        ]).to_list(length=None)
+
+        # Convert the total conversion time to a timedelta object
+        if total_conversion_time_db:
+            total_conversion_time = timedelta(milliseconds=total_conversion_time_db[0]["total"])
+        else:
+            # If there are no files in the database, set the total conversion time to 0
+            total_conversion_time = timedelta(milliseconds=0)
+
+        # Convert the total conversion time to a string in the format "n days HH:MM:SS"
+        total_conversion_time_string = str(total_conversion_time).split(".")[0]
+
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
             total_files=total_files,
@@ -134,7 +166,8 @@ class Database:
             gigabytes_before_conversion=round(gigabytes_before_conversion, 3),
             gigabytes_after_conversion=round(gigabytes_after_conversion, 3),
             gigabytes_saved=round(gigabytes_saved, 3),
-            percentage_saved=int(percentage_saved)
+            percentage_saved=int(percentage_saved),
+            total_conversion_time=total_conversion_time_string
         )
 
         # Return the StatisticsMessage

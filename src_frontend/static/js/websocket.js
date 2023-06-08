@@ -121,6 +121,9 @@ function openWebSocket() {
                                 key = "Percentage Saved: ";
                                 value = value + "%";
                                 break;
+                            case 'total_conversion_time':
+                                key = "Total Conversion Time: ";
+                                break;
                             default:
                                 console.log("Unknown key: " + key);
                         }
