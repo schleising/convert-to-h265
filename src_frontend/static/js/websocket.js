@@ -52,8 +52,8 @@ function openWebSocket() {
                     // Set the value of the file-progress element to 0
                     document.getElementById("file-progress").value = 0;
                 } else {
-                    // Set the innerHTML of the filename element to the filename
-                    document.getElementById("filename").innerHTML = "Currently Converting: " + conversionStatus.filename;
+                    // Set the innerHTML of the filename element to the filename with the percentage to 2 decimal places
+                    document.getElementById("filename").innerHTML = "Currently Converting: " + conversionStatus.filename + " (" + conversionStatus.progress.toFixed(2) + "%)";
 
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;
