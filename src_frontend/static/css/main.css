@@ -31,6 +31,17 @@
     padding: 0.25rem;
 }
 
+.container-border {
+    border: 0.075rem;
+    border-style: solid;
+    border-color: silver;
+    border-radius: 0.5rem;
+}
+
+.data-header {
+    padding: 0.25rem;
+}
+
 .details-container {
     display: flex;
     flex-direction: column;
@@ -38,6 +49,7 @@
     align-items: flex-start;
     width: 100%;
     overflow-y: scroll;
+    padding: 0.25rem;
 }
 
 .data-list {
