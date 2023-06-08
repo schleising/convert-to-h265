@@ -28,6 +28,12 @@ document.addEventListener('readystatechange', event => {
     }
 });
 
+// Add a callback for when the page gains focus
+window.addEventListener('focus', event => {
+    // Check whether the websocket is open, if not open it
+    checkSocketAndSendMessage(event);
+});
+
 // Function to open a web socket
 function openWebSocket() {
     console.log("Opening Websocket")
@@ -143,7 +149,7 @@ function openWebSocket() {
 
     // Add the event listener
     ws.addEventListener('open', (event) => {
-        sendMessage(event);
+        checkSocketAndSendMessage(event);
     });
 };
 
