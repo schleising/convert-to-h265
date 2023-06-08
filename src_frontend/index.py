@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 from .database.database import Database
 from .messages.messages import ConvertingFileMessage, FilesToConvertMessage, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
+from .utils.utils import calculate_time_remaining
 
 # Initialise the database
 database = Database()
@@ -57,17 +58,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_conversion_status_db = await database.get_converting_file()
 
                     if current_conversion_status_db is not None:
-                        # Create a ConvertingFileMessage from the database object
-                        current_conversion_status = ConvertingFileMessage(
-                            filename=current_conversion_status_db.filename,
+                        # Get the conversion time remaining
+                        time_remaining = calculate_time_remaining(
+                            start_time=current_conversion_status_db.start_conversion_time,
                             progress=current_conversion_status_db.percentage_complete
                         )
 
-                        # Set the last file converted
-                        last_file_converted = current_conversion_status.filename
-
-                        # Log the last file converted
-                        logging.info(f'Last file converted: {last_file_converted}')
+                        # Create a ConvertingFileMessage from the database object
+                        current_conversion_status = ConvertingFileMessage(
+                            filename=current_conversion_status_db.filename,
+                            progress=current_conversion_status_db.percentage_complete,
+                            time_remaining=time_remaining
+                        )
 
                         # Create a Message from the ConvertingFileMessage
                         message = Message(
