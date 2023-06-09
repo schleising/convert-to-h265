@@ -83,12 +83,56 @@ function openWebSocket() {
                     // Set the value of the file-progress element to 0
                     document.getElementById("file-progress").value = 0;
                 } else {
+                    // Parse the time remaining which is in Python timedelta string format into a Date object 
+                    time_array = conversionStatus.time_remaining.match(/[0-9]+/g);
+
+                    if (time_array.length == 4) {
+                        days = parseInt(time_array[0]);
+                        hours = parseInt(time_array[1]);
+                        minutes = parseInt(time_array[2]);
+                        seconds = parseInt(time_array[3]);
+                    } else if (time_array.length == 3) {
+                        days = 0;
+                        hours = parseInt(time_array[0]);
+                        minutes = parseInt(time_array[1]);
+                        seconds = parseInt(time_array[2]);
+                    } else {
+                        console.log("Unknown time array length: " + time_array.length);
+                        days = 0;
+                        hours = 0;
+                        minutes = 0;
+                        seconds = 0;
+                    }
+
+                    // Create a new Date object which is the current time plus the time remaining
+                    expected_completion_time = new Date();
+                    expected_completion_time.setDate(expected_completion_time.getDate() + days);
+                    expected_completion_time.setHours(expected_completion_time.getHours() + hours);
+                    expected_completion_time.setMinutes(expected_completion_time.getMinutes() + minutes);
+                    expected_completion_time.setSeconds(expected_completion_time.getSeconds() + seconds);
+
+                    // Format the expected completion time into a string with the format %A HH:MM:SS
+                    expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+
+                    // Get the width of the filename element
+                    filenameWidth = document.getElementById("filename").offsetWidth;
+
+                    // Work out the maximum number of characters that can fit in the filename element
+                    maxCharacters = Math.floor(filenameWidth / 8);
+
+                    // Check whether the filename is longer than the maximum number of characters
+                    if (conversionStatus.filename.length > maxCharacters) {
+                        // Truncate the filename by adding an ellipsis in the middle of the filename
+                        conversionStatus.filename = conversionStatus.filename.substring(0, maxCharacters / 2 - 2) + "..." + conversionStatus.filename.substring(conversionStatus.filename.length - maxCharacters / 2 + 1, conversionStatus.filename.length);
+                    }
+
                     // Set the innerHTML of the filename element to the filename with the percentage to 2 decimal places and the time remaining
-                    document.getElementById("filename").innerHTML = "Currently Converting: " + 
+                    document.getElementById("filename").innerHTML = "Currently Converting: " + "<br>" +
                         conversionStatus.filename + "<br>" + 
                         "Complete: " + conversionStatus.progress.toFixed(2) + "%" + "<br>" +
                         "Time Since Start: " + conversionStatus.time_since_start + "<br>" +
-                        "Time Remaining: " + conversionStatus.time_remaining;
+                        "Time Remaining: " + conversionStatus.time_remaining + "<br>" +
+                        "Completion Time: " + expected_completion_time;
 
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;
@@ -109,6 +153,27 @@ function openWebSocket() {
                 if (filesConverted.filenames == null) {
                     document.getElementById("converted-files").innerHTML = "No files converted";
                 } else {
+                    // Get the width of the converted-files element
+                    convertedFilesWidth = document.getElementById("converted-files").offsetWidth;
+
+                    // Work out the maximum number of characters that can fit in the converted-files element
+                    maxCharacters = Math.floor(convertedFilesWidth / 8);
+
+                    // Iterate through the files converted
+                    for (i = 0; i < filesConverted.filenames.length; i++) {
+                        // Fit the filename to the width of the conveted-files element
+                        filename = filesConverted.filenames[i];
+
+                        // Check whether the filename is too long
+                        if (filename.length > maxCharacters) {
+                            // Truncate the filename by adding an ellipsis in the middle of the filename
+                            filename = filename.substring(0, maxCharacters / 2 - 2) + "..." + filename.substring(filename.length - maxCharacters / 2 + 1, filename.length);
+                        }
+
+                        // Set the filename in the filesConverted object to the truncated filename
+                        filesConverted.filenames[i] = filename;
+                    }
+                        
                     // Convert the list of files converted to a string with a new line between each file
                     filesConvertedString = filesConverted.filenames.join("<br>");
 
