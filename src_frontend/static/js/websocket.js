@@ -111,8 +111,8 @@ function openWebSocket() {
                     expected_completion_time.setMinutes(expected_completion_time.getMinutes() + minutes);
                     expected_completion_time.setSeconds(expected_completion_time.getSeconds() + seconds);
 
-                    // Format the expected completion time into a string with the format %A HH:MM:SS
-                    expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+                    // Format the expected completion time into a string with the format %A HH:MM
+                    expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
 
                     // Get the width of the filename element
                     filenameWidth = document.getElementById("filename").offsetWidth;
