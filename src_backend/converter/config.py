@@ -27,6 +27,10 @@ class ConfigData(BaseModel):
 
 class Config:
     def __init__(self) -> None:
+        # Read the config file
+        self.read_config()
+
+    def read_config(self) -> None:
         # Load the config file
         with open("src/config.toml", "rb") as f:
             # Use tomllib to parse the TOML file

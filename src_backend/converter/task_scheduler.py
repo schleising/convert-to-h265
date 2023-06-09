@@ -43,6 +43,9 @@ class TaskScheduler:
 
     def run(self) -> None:
         while True:
+            # Re-read the config file so timings can be changed without restarting the container
+            config.read_config()
+
             # Get the current time in UTC
             now = datetime.now().astimezone(UTC)
 
