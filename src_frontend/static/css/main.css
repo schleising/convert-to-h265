@@ -47,17 +47,20 @@
 }
 
 .details-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
     white-space: nowrap;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.5rem;
     width: 100%;
     overflow-y: scroll;
     padding: 0.25rem;
 }
 
-.data-list {
+.details-container-reversed {
+    grid-template-columns: 1fr auto;
+}
+
+.key-value {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -65,12 +68,12 @@
     width: 100%;
 }
 
-.data-key {
-    width: 100%;
+.data-value {
+    text-align: right;
 }
 
-.data-value {
-    width: 100%;
+.data-value-left {
+    text-align: left;
 }
 
 .progress-area {
@@ -95,8 +98,7 @@
 
 .filename {
     white-space: nowrap;
-    width: 100%;
-    padding: 0.25rem;
+    overflow-x: scroll;
 }
 
 #file-progress {

@@ -2,21 +2,24 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from .models import FileData
-from ..messages.messages import StatisticsMessage
+from ..messages.messages import StatisticsMessage, ConvertedFileData
 from . import media_collection
 
 class Database:
     def __init__(self) -> None:
         pass
 
-    def _create_converted_data_string(self, file_data: FileData) -> str:
+    def _create_converted_data(self, file_data: FileData) -> ConvertedFileData:
         # Calculate the compression percentage
         compression_percentage = (1 - (file_data.current_size / file_data.pre_conversion_size)) * 100
 
-        # Create a string with the filename and the compression percentage
-        return f"{Path(file_data.filename).name} ({compression_percentage:.2f}%)"
+        # Create a ConvertedFileData object
+        return ConvertedFileData(
+            filename=Path(file_data.filename).name,
+            percentage_saved=compression_percentage
+        )
 
-    async def get_converted_files(self) -> list[str]:
+    async def get_converted_files(self) -> list[ConvertedFileData]:
         # Find files that have been converted in the last week
         db_file_cursor = media_collection.find({
             "conversion_required": True,
@@ -32,7 +35,7 @@ class Database:
         db_file_list = await db_file_cursor.to_list(length=None)
 
         # Convert the list of FileData objects to a list of file paths
-        file_list = [self._create_converted_data_string(FileData(**data)) for data in db_file_list]
+        file_list = [self._create_converted_data(FileData(**data)) for data in db_file_list]
 
         return file_list
     

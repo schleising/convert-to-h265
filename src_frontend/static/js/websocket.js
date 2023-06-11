@@ -114,25 +114,14 @@ function openWebSocket() {
                     // Format the expected completion time into a string with the format %A HH:MM
                     expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
 
-                    // Get the width of the filename element
-                    filenameWidth = document.getElementById("filename").offsetWidth;
-
-                    // Work out the maximum number of characters that can fit in the filename element
-                    maxCharacters = Math.floor(filenameWidth / 8);
-
-                    // Check whether the filename is longer than the maximum number of characters
-                    if (conversionStatus.filename.length > maxCharacters) {
-                        // Truncate the filename by adding an ellipsis in the middle of the filename
-                        conversionStatus.filename = conversionStatus.filename.substring(0, maxCharacters / 2 - 2) + "..." + conversionStatus.filename.substring(conversionStatus.filename.length - maxCharacters / 2 + 1, conversionStatus.filename.length);
-                    }
-
-                    // Set the innerHTML of the filename element to the filename with the percentage to 2 decimal places and the time remaining
-                    document.getElementById("filename").innerHTML = "Currently Converting: " + "<br>" +
-                        conversionStatus.filename + "<br>" + 
-                        "Complete: " + conversionStatus.progress.toFixed(2) + "%" + "<br>" +
-                        "Time Since Start: " + conversionStatus.time_since_start + "<br>" +
-                        "Time Remaining: " + conversionStatus.time_remaining + "<br>" +
-                        "Completion Time: " + expected_completion_time;
+                    // Append key / value elements to the progress-details element
+                    progressElement = document.getElementById("progress-details");
+                    progressElement.innerHTML = "";
+                    appendKeyValueElement(progressElement, "Filename:", conversionStatus.filename, [], ["filename", "data-value-left"]);
+                    appendKeyValueElement(progressElement, "Complete:", conversionStatus.progress.toFixed(2) + "%", [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.time_since_start, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.time_remaining, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
 
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.progress;
@@ -150,35 +139,25 @@ function openWebSocket() {
                 filesConverted = message.messageBody;
 
                 // Check whether files converted is null
-                if (filesConverted.filenames == null) {
+                if (filesConverted == null) {
                     document.getElementById("converted-files").innerHTML = "No files converted";
                 } else {
-                    // Get the width of the converted-files element
-                    convertedFilesWidth = document.getElementById("converted-files").offsetWidth;
+                    // Clear the converted-files element
+                    document.getElementById("converted-files").innerHTML = "";
 
-                    // Work out the maximum number of characters that can fit in the converted-files element
-                    maxCharacters = Math.floor(convertedFilesWidth / 8);
+                    console.log(filesConverted);
 
-                    // Iterate through the files converted
-                    for (i = 0; i < filesConverted.filenames.length; i++) {
-                        // Fit the filename to the width of the conveted-files element
-                        filename = filesConverted.filenames[i];
-
-                        // Check whether the filename is too long
-                        if (filename.length > maxCharacters) {
-                            // Truncate the filename by adding an ellipsis in the middle of the filename
-                            filename = filename.substring(0, maxCharacters / 2 - 2) + "..." + filename.substring(filename.length - maxCharacters / 2 + 1, filename.length);
-                        }
-
-                        // Set the filename in the filesConverted object to the truncated filename
-                        filesConverted.filenames[i] = filename;
+                    // Loop through the filenames
+                    for (i = 0; i < filesConverted.converted_files.length; i++) {
+                        // Append a new key / value element to the converted-files element
+                        appendKeyValueElement(
+                            document.getElementById("converted-files"),
+                            filesConverted.converted_files[i].filename,
+                            filesConverted.converted_files[i].percentage_saved.toFixed(0) + "%",
+                            ["filename"],
+                            []
+                        );
                     }
-                        
-                    // Convert the list of files converted to a string with a new line between each file
-                    filesConvertedString = filesConverted.filenames.join("<br>");
-
-                    // Set the innerHTML of the converted-files element to the string
-                    document.getElementById("converted-files").innerHTML = filesConvertedString;
                 }
                 break;
             case 'statistics':
@@ -229,15 +208,21 @@ function openWebSocket() {
                         }
 
                         // Create the statistics element
-                        statisticsElement = createStatisticsElement(key, value);
-
-                        // Append the statistics element to the statistics element
-                        document.getElementById("statistics").appendChild(statisticsElement);
+                        appendKeyValueElement(document.getElementById("statistics"), key, value);
                     }
                 }
                 break;
             default:
                 console.log("Unknown message type received: " + event.data.messageType);
+        }
+
+        // Get all the elements with the class "filename"
+        filenameElements = document.getElementsByClassName("filename");
+
+        // Loop through the filename elements
+        for (i = 0; i < filenameElements.length; i++) {
+            // Trim the filename to the width of the filename element
+            trimStringToElement(filenameElements[i]);
         }
     };
 

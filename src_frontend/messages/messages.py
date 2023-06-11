@@ -13,11 +13,12 @@ class ConvertingFileMessage(BaseModel):
     time_since_start: str
     time_remaining: str
 
-class FilesToConvertMessage(BaseModel):
-    filenames: list[str]
+class ConvertedFileData(BaseModel):
+    filename: str
+    percentage_saved: float
 
 class ConvertedFilesMessage(BaseModel):
-    filenames: list[str]
+    converted_files: list[ConvertedFileData]
 
 class StatisticsMessage(BaseModel):
     total_files: int
@@ -31,4 +32,4 @@ class StatisticsMessage(BaseModel):
 
 class Message(BaseModel):
     messageType: MessageTypes
-    messageBody: ConvertingFileMessage | FilesToConvertMessage | ConvertedFilesMessage | StatisticsMessage | None
+    messageBody: ConvertingFileMessage | ConvertedFilesMessage | StatisticsMessage | None

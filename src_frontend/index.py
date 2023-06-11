@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from .database.database import Database
-from .messages.messages import ConvertingFileMessage, FilesToConvertMessage, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
+from .messages.messages import ConvertingFileMessage, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
 from .utils.utils import calculate_time_remaining
 
 # Initialise the database
@@ -102,11 +102,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         ).dict())
 
                     # Get the files converted
-                    files_converted = await database.get_converted_files()
+                    converted_files = await database.get_converted_files()
 
                     # Create a ConvertedFilesMessage from the database objects
                     files_converted_message = ConvertedFilesMessage(
-                        filenames=files_converted
+                        converted_files=converted_files
                     )
 
                     # Create a Message from the ConvertedFilesMessage
