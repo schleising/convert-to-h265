@@ -5,6 +5,8 @@ import signal
 import sys
 import shutil
 
+from pymongo import DESCENDING
+
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
 
@@ -72,22 +74,40 @@ class Converter:
         # Exit the application
         sys.exit(0)
 
-
-    def convert(self):
-        # Get a file that needs to be converted from MongoDB
+    # Get the db entry with the highest bit_rate (video_information.streams[first_video_stream].bit_rate) 
+    # that has not been converted yet and is not currently being converted
+    def _get_highest_bit_rate(self) -> FileData | None:
+        # Get the file with the highest bit rate that has not been converted yet
         db_file = media_collection.find_one({
             "conversion_required": True,
             "converting": False,
             "converted": False,
             "conversion_error": False
-        })
+        }, sort=[("video_information.streams.0.bit_rate", DESCENDING)])
 
+        # Check if there is a file that needs to be converted
         if db_file is not None:
-            # Convert db_file into a FileData object
-            self._file_data = FileData(**db_file)
+            # Get the file data
+            file_data = FileData(**db_file)
 
-            # Log that we are converting the file
-            logging.info(f"Converting {self._file_data.filename}")
+            # Return the file data
+            return file_data
+        else:
+            return None
+
+    def convert(self):
+        # Get a file that needs to be converted from MongoDB
+        self._file_data = self._get_highest_bit_rate()
+
+        if self._file_data is not None:
+            # Log the bitrate of the file we are converting
+            if self._file_data.first_video_stream is not None:
+                first_video_stream = self._file_data.first_video_stream
+            else:
+                first_video_stream = 0
+
+            # Log the bitrate of the file we are converting
+            logging.info(f"Converting {self._file_data.filename} with bitrate {self._file_data.video_information.streams[first_video_stream].bit_rate}")
 
             # Update the file_data object
             self._file_data.converting = True
