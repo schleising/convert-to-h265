@@ -98,7 +98,7 @@
 
 .filename {
     white-space: nowrap;
-    overflow-x: scroll;
+    overflow-x: hidden;
 }
 
 #file-progress {
@@ -113,5 +113,9 @@
 
     .data-container {
         margin-bottom: 0.5rem;
+    }
+
+    .data-value-left {
+        text-align: right;
     }
 }

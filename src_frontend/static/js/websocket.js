@@ -145,8 +145,6 @@ function openWebSocket() {
                     // Clear the converted-files element
                     document.getElementById("converted-files").innerHTML = "";
 
-                    console.log(filesConverted);
-
                     // Loop through the filenames
                     for (i = 0; i < filesConverted.converted_files.length; i++) {
                         // Append a new key / value element to the converted-files element
@@ -221,6 +219,9 @@ function openWebSocket() {
 
         // Loop through the filename elements
         for (i = 0; i < filenameElements.length; i++) {
+            // Set the title of the filename element to the full filename
+            filenameElements[i].title = `${filenameElements[i].innerHTML}`;
+
             // Trim the filename to the width of the filename element
             trimStringToElement(filenameElements[i]);
         }

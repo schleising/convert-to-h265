@@ -30,19 +30,25 @@ function trimStringToElement(element) {
     // Get the width of the converted-files element
     convertedFilesWidth = element.offsetWidth;
 
-    // Work out the maximum number of characters that can fit in the converted-files element
-    maxCharacters = Math.floor(convertedFilesWidth / 8);
-
     // Fit the filename to the width of the conveted-files element
-    oldString = element.innerText;
+    oldString = `${element.title}`;
+
+    // Set the innerText to the old string
+    element.innerText = oldString;
+
+    // Set the point to start removing characters from the string
+    maxCharacters = oldString.length - 7;
 
     // Check whether the filename is too long
-    if (oldString.length > maxCharacters) {
-        // Truncate the filename by adding an ellipsis in the middle of the filename
-        newString = oldString.substring(0, maxCharacters / 2 - 2) + "..." + oldString.substring(oldString.length - maxCharacters / 2 + 2, oldString.length);
+    while (element.scrollWidth > convertedFilesWidth) {
+        // Truncate the filename by removing characters adding an ellipsis before the file extension
+        newString = oldString.substring(0, maxCharacters) + "..." + oldString.substring(oldString.length - 4, oldString.length);
 
         // Set the innerText to the new string
         element.innerText = newString;
+
+        // Decrement the point to start removing characters from the string by 1
+        maxCharacters--;
     }
 }
 
