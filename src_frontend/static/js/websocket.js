@@ -75,10 +75,14 @@ function openWebSocket() {
                 // Get the conversion status
                 conversionStatus = message.messageBody;
 
+                // Get the progress element and clear it
+                progressElement = document.getElementById("progress-details");
+                progressElement.innerHTML = "";
+
                 // Check whether conversion status is null
                 if (conversionStatus == null) {
-                    // Set the innerHTML of the filename element to "No file being converted"
-                    document.getElementById("filename").innerHTML = "No file being converted";
+                    // Append a key value element to the progress element
+                    appendKeyValueElement(progressElement, "No file being converted", "", [], []);
 
                     // Set the value of the file-progress element to 0
                     document.getElementById("file-progress").value = 0;
@@ -115,8 +119,6 @@ function openWebSocket() {
                     expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
 
                     // Append key / value elements to the progress-details element
-                    progressElement = document.getElementById("progress-details");
-                    progressElement.innerHTML = "";
                     appendKeyValueElement(progressElement, "Filename:", conversionStatus.filename, [], ["filename", "data-value-left"]);
                     appendKeyValueElement(progressElement, "Complete:", conversionStatus.progress.toFixed(2) + "%", [], ["data-value-left"]);
                     appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.time_since_start, [], ["data-value-left"]);
