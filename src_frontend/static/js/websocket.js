@@ -7,8 +7,8 @@ var url;
 // Variable to identify the timer in use
 var timer = 0;
 
-// Variable to identify whether the page is focussed, set to true by default as the page is focussed when it loads
-var focussed = true;
+// Variable to identify whether the page is visible, set to true by default as the page is visible when it loads
+var visible = true;
 
 // Add a callback for state changes
 document.addEventListener('readystatechange', event => {
@@ -34,29 +34,30 @@ document.addEventListener('readystatechange', event => {
     }
 });
 
-// Add a callback for when the page loses focus
-window.addEventListener('blur', event => {
-    // Set the focussed variable to false
-    focussed = false;
+// Add an event listener to listen for page visibility changes
+document.addEventListener("visibilitychange", event => {
+    // If the page is now visible and the websocket is not open, open it
+    if (document.visibilityState == "visible") {
+        // Set the visible variable to true
+        visible = true;
 
-    // Clear the timer if it is set
-    if (timer != 0) {
-        clearTimeout(timer);
+        // Clear the timer if it is set
+        if (timer != 0) {
+            clearTimeout(timer);
+        }
+
+        // Check whether the websocket is open, if not open it
+        checkSocketAndSendMessage(event);
     }
-});
+    else {
+        // Set the visible variable to false
+        visible = false;
 
-// Add a callback for when the page gains focus
-window.addEventListener('focus', event => {
-    // Set the focussed variable to true
-    focussed = true;
-
-    // Clear the timer if it is set
-    if (timer != 0) {
-        clearTimeout(timer);
+        // Clear the timer if it is set
+        if (timer != 0) {
+            clearTimeout(timer);
+        }
     }
-
-    // Check whether the websocket is open, if not open it
-    checkSocketAndSendMessage(event);
 });
 
 // Function to open a web socket
@@ -129,8 +130,8 @@ function openWebSocket() {
                     document.getElementById("file-progress").value = conversionStatus.progress;
                 }
 
-                // Check whether the page is focussed
-                if (focussed) {
+                // Check whether the page is visible
+                if (visible) {
                     // Can call checkSocketAndSendMessage here, now the statistics message has been received and the server has responded
                     timer = setTimeout(checkSocketAndSendMessage, 1000);
                 }
