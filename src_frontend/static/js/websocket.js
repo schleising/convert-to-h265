@@ -91,7 +91,14 @@ function openWebSocket() {
                     // Parse the time remaining which is in Python timedelta string format into a Date object 
                     time_array = conversionStatus.time_remaining.match(/[0-9]+/g);
 
-                    if (time_array.length == 4) {
+                    // Check that the time array is not null
+                    if (time_array == null) {
+                        console.log("Time array is null");
+                        days = 0;
+                        hours = 0;
+                        minutes = 0;
+                        seconds = 0;
+                    } else if (time_array.length == 4) {
                         days = parseInt(time_array[0]);
                         hours = parseInt(time_array[1]);
                         minutes = parseInt(time_array[2]);
