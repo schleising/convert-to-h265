@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from pymongo import DESCENDING
+
 from .models import FileData
 from ..messages.messages import StatisticsMessage, ConvertedFileData
 from . import media_collection
@@ -20,7 +22,7 @@ class Database:
         )
 
     async def get_converted_files(self) -> list[ConvertedFileData]:
-        # Find files that have been converted in the last week
+        # Find files that have been converted in the last week, sorted by the time they were converted in descending order
         db_file_cursor = media_collection.find({
             "conversion_required": True,
             "converting": False,
@@ -28,8 +30,8 @@ class Database:
             "conversion_error": False,
             "end_conversion_time": {
                 "$gte": datetime.now() - timedelta(days=7)
-            }
-        })
+            },
+        }, sort=[("end_conversion_time", DESCENDING)])
 
         # Convert the cursor to a list
         db_file_list = await db_file_cursor.to_list(length=None)
