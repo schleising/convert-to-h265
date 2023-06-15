@@ -93,7 +93,6 @@ function openWebSocket() {
 
                     // Check that the time array is not null
                     if (time_array == null) {
-                        console.log("Time array is null");
                         days = 0;
                         hours = 0;
                         minutes = 0;
