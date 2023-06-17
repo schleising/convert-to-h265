@@ -76,6 +76,23 @@
     text-align: left;
 }
 
+#conversion-header {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+}
+
+.conversion-button {
+    margin-right: 0.25rem;
+}
+
+.active {
+    background-color: hsl(120, 25%, 80%);
+    /* background-color: powderblue; */
+}
+
 .progress-area {
     display: flex;
     flex-direction: column;

@@ -10,6 +10,9 @@ var timer = 0;
 // Variable to identify whether the page is visible, set to true by default as the page is visible when it loads
 var visible = true;
 
+// Variable to store the conversion number
+var conversionNumber = 0;
+
 // Add a callback for state changes
 document.addEventListener('readystatechange', event => {
     if (event.target.readyState === "complete") {
@@ -72,7 +75,7 @@ function openWebSocket() {
         message = JSON.parse(event.data);
 
         switch (message.messageType) {
-            case 'converting_file':
+            case 'converting_files':
                 // Get the conversion status
                 conversionStatus = message.messageBody;
 
@@ -88,8 +91,57 @@ function openWebSocket() {
                     // Set the value of the file-progress element to 0
                     document.getElementById("file-progress").value = 0;
                 } else {
+                    // Get the number of files being converted
+                    numFiles = conversionStatus.converting_files.length;
+
+                    // Add a clickable element with the conversion number to the conversion-header element
+                    conversionHeaderElement = document.getElementById("conversion-header");
+
+                    // Remove all child elements from the conversion header element
+                    while (conversionHeaderElement.firstChild) {
+                        conversionHeaderElement.removeChild(conversionHeaderElement.firstChild);
+                    }
+
+                    // Loop through the files being converted
+                    for (i = 0; i < numFiles; i++) {
+                        // Create a new element
+                        newElement = document.createElement("button");
+
+                        // Set the id of the new element
+                        newElement.id = "conversion-" + (i);
+
+                        // Set the class of the new element
+                        newElement.className = "conversion-button";
+
+                        // Set the onclick function of the new element
+                        newElement.onclick = function() { 
+                            // Set the conversion number to the number at the end of the id
+                            conversionNumber = this.id.match(/[0-9]+/g)[0];
+
+                            // Clear the timer if it is set
+                            if (timer != 0) {
+                                clearTimeout(timer);
+                            }
+
+                            // Check whether the websocket is open, if not open it
+                            checkSocketAndSendMessage(event);
+                        };
+
+                        // Set the text of the new element
+                        newElement.innerHTML = "Conversion " + (i + 1);
+
+                        // Append the new element to the conversion header element
+                        conversionHeaderElement.appendChild(newElement);
+
+                        // Check whether the conversion number is equal to the current index
+                        if (conversionNumber == i) {
+                            // Set the new element to be active
+                            newElement.className = "conversion-button active";
+                        }
+                    }
+
                     // Parse the time remaining which is in Python timedelta string format into a Date object 
-                    time_array = conversionStatus.time_remaining.match(/[0-9]+/g);
+                    time_array = conversionStatus.converting_files[conversionNumber].time_remaining.match(/[0-9]+/g);
 
                     // Check that the time array is not null
                     if (time_array == null) {
@@ -126,14 +178,14 @@ function openWebSocket() {
                     expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
 
                     // Append key / value elements to the progress-details element
-                    appendKeyValueElement(progressElement, "Filename:", conversionStatus.filename, [], ["filename", "data-value-left"]);
-                    appendKeyValueElement(progressElement, "Complete:", conversionStatus.progress.toFixed(2) + "%", [], ["data-value-left"]);
-                    appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.time_since_start, [], ["data-value-left"]);
-                    appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.time_remaining, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Filename:", conversionStatus.converting_files[conversionNumber].filename, [], ["filename", "data-value-left"]);
+                    appendKeyValueElement(progressElement, "Complete:", conversionStatus.converting_files[conversionNumber].progress.toFixed(2) + "%", [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.converting_files[conversionNumber].time_since_start, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.converting_files[conversionNumber].time_remaining, [], ["data-value-left"]);
                     appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
 
                     // Set the value of the file-progress element to the progress
-                    document.getElementById("file-progress").value = conversionStatus.progress;
+                    document.getElementById("file-progress").value = conversionStatus.converting_files[conversionNumber].progress;
                 }
 
                 // Check whether the page is visible

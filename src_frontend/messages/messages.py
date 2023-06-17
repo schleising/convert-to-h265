@@ -2,16 +2,19 @@ from pydantic import BaseModel
 from enum import Enum
 
 class MessageTypes(str, Enum):
-    CONVERTING_FILE = "converting_file"
+    CONVERTING_FILES = "converting_files"
     FILES_TO_CONVERT = "files_to_convert"
     CONVERTED_FILES = "converted_files"
     STATISTICS = "statistics"
 
-class ConvertingFileMessage(BaseModel):
+class ConvertingFileData(BaseModel):
     filename: str
     progress: float
     time_since_start: str
     time_remaining: str
+
+class ConvertingFilesMessage(BaseModel):
+    converting_files: list[ConvertingFileData]
 
 class ConvertedFileData(BaseModel):
     filename: str
@@ -32,4 +35,4 @@ class StatisticsMessage(BaseModel):
 
 class Message(BaseModel):
     messageType: MessageTypes
-    messageBody: ConvertingFileMessage | ConvertedFilesMessage | StatisticsMessage | None
+    messageBody: ConvertingFilesMessage | ConvertedFilesMessage | StatisticsMessage | None

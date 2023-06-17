@@ -41,17 +41,18 @@ class Database:
 
         return file_list
     
-    async def get_converting_file(self) -> FileData | None:
-        # Get the file that is being converted from MongoDB
-        db_file = await media_collection.find_one({
-            "converting": True,
+    async def get_converting_files(self) -> list[FileData] | None:
+        # Get the files that are being converted from MongoDB
+        db_file = media_collection.find({
+            "converting": True
         })
 
         # Convert the list of FileData objects to a list of file paths
         if db_file is not None:
-            file_data = FileData(**db_file)
+            db_file_list = await db_file.to_list(length=None)
+            file_data_list = [FileData(**data) for data in db_file_list]
 
-            return file_data
+            return file_data_list
 
         return None
 

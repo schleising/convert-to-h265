@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from .database.database import Database
-from .messages.messages import ConvertingFileMessage, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
+from .messages.messages import ConvertingFilesMessage, ConvertingFileData, ConvertedFilesMessage, StatisticsMessage, MessageTypes, Message
 from .utils.utils import calculate_time_remaining
 
 # Initialise the database
@@ -57,35 +57,47 @@ async def websocket_endpoint(websocket: WebSocket):
                     logging.debug('Ping received')
 
                     # Get the current conversion status
-                    current_conversion_status_db = await database.get_converting_file()
+                    current_conversion_status_db_list = await database.get_converting_files()
 
-                    if current_conversion_status_db is not None:
-                        # Get the time since the conversion started
-                        if current_conversion_status_db.start_conversion_time is not None:
-                            time_since_start = datetime.now().astimezone(UTC) - current_conversion_status_db.start_conversion_time
-                        else:
-                            time_since_start = timedelta(seconds=0)
+                    if current_conversion_status_db_list is not None:
+                        # Create a ConvertingFilesMessage list
+                        current_conversion_status_list: list[ConvertingFileData] = []
 
-                        # Convert the time since the conversion started to a string discarding the microseconds
-                        time_since_start_str = str(time_since_start).split('.')[0]
+                        for current_conversion_status_db in current_conversion_status_db_list:
+                            # Get the time since the conversion started
+                            if current_conversion_status_db.start_conversion_time is not None:
+                                time_since_start = datetime.now().astimezone(UTC) - current_conversion_status_db.start_conversion_time
+                            else:
+                                time_since_start = timedelta(seconds=0)
 
-                        # Get the conversion time remaining
-                        time_remaining = calculate_time_remaining(
-                            start_time=current_conversion_status_db.start_conversion_time,
-                            progress=current_conversion_status_db.percentage_complete
-                        )
+                            # Convert the time since the conversion started to a string discarding the microseconds
+                            time_since_start_str = str(time_since_start).split('.')[0]
 
-                        # Create a ConvertingFileMessage from the database object
-                        current_conversion_status = ConvertingFileMessage(
-                            filename=Path(current_conversion_status_db.filename).name,
-                            progress=current_conversion_status_db.percentage_complete,
-                            time_since_start=time_since_start_str,
-                            time_remaining=time_remaining
+                            # Get the conversion time remaining
+                            time_remaining = calculate_time_remaining(
+                                start_time=current_conversion_status_db.start_conversion_time,
+                                progress=current_conversion_status_db.percentage_complete
+                            )
+
+                            # Create a ConvertingFileMessage from the database object
+                            current_conversion_status = ConvertingFileData(
+                                filename=Path(current_conversion_status_db.filename).name,
+                                progress=current_conversion_status_db.percentage_complete,
+                                time_since_start=time_since_start_str,
+                                time_remaining=time_remaining
+                            )
+
+                            # Add the ConvertingFileMessage to the list
+                            current_conversion_status_list.append(current_conversion_status)
+
+                        # Create a ConvertingFilesMessage from the list
+                        current_conversion_status = ConvertingFilesMessage(
+                            converting_files=current_conversion_status_list
                         )
 
                         # Create a Message from the ConvertingFileMessage
                         message = Message(
-                            messageType=MessageTypes.CONVERTING_FILE,
+                            messageType=MessageTypes.CONVERTING_FILES,
                             messageBody=current_conversion_status
                         )
 
@@ -97,7 +109,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     else:
                         # Send the conversion status as None
                         await websocket.send_json(Message(
-                            messageType=MessageTypes.CONVERTING_FILE,
+                            messageType=MessageTypes.CONVERTING_FILES,
                             messageBody=None
                         ).dict())
 
