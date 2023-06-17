@@ -50,7 +50,7 @@ class TaskScheduler:
             # Get the current time in UTC
             now = datetime.now().astimezone(UTC)
 
-            logging.info(os.getenv("MAIN_BACKEND"))
+            logging.debug(os.getenv("MAIN_BACKEND"))
 
             # Only walk the folders if this is the main backend
             if os.getenv("MAIN_BACKEND") == "TRUE":
