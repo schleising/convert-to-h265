@@ -31,7 +31,7 @@
     scan_time = 00:00:00
 
     # The time to start running the conversion process
-    start_conversion_time = 01:00:00
+    start_conversion_time = 00:05:00
 
     # The time to stop running the conversion process
-    end_conversion_time = 19:00:00
+    end_conversion_time = 23:59:00
