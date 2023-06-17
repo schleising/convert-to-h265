@@ -41,6 +41,12 @@ async def websocket_endpoint(websocket: WebSocket):
     # Log the connection
     logging.info('Websocket Opened')
 
+    # Variable to store the last converted files message
+    last_converted_files_message: ConvertedFilesMessage | None = None
+
+    # Variable to store the last statistics message
+    last_statistics_message: StatisticsMessage | None = None
+
     try:
         # Loop forever
         while True:
@@ -121,29 +127,39 @@ async def websocket_endpoint(websocket: WebSocket):
                         converted_files=converted_files
                     )
 
-                    # Create a Message from the ConvertedFilesMessage
-                    message = Message(
-                        messageType=MessageTypes.CONVERTED_FILES,
-                        messageBody=files_converted_message
-                    )
+                    # If the files converted message has changed send an update
+                    if files_converted_message != last_converted_files_message:
+                        # Create a Message from the ConvertedFilesMessage
+                        message = Message(
+                            messageType=MessageTypes.CONVERTED_FILES,
+                            messageBody=files_converted_message
+                        )
 
-                    # Send the files converted
-                    await websocket.send_json(message.dict())
+                        # Send the files converted
+                        await websocket.send_json(message.dict())
+
+                        # Set the last converted files message
+                        last_converted_files_message = files_converted_message
 
                     # Get the statistics
                     statistics = await database.get_statistics()
 
-                    # Create a Message from the StatisticsMessage
-                    message = Message(
-                        messageType=MessageTypes.STATISTICS,
-                        messageBody=statistics
-                    )
+                    # If the statistics have changed send an update
+                    if statistics != last_statistics_message:
+                        # Create a Message from the StatisticsMessage
+                        message = Message(
+                            messageType=MessageTypes.STATISTICS,
+                            messageBody=statistics
+                        )
 
-                    # Log the statistics
-                    logging.debug(f'Statistics: {message}')
+                        # Log the statistics
+                        logging.debug(f'Statistics: {message}')
 
-                    # Send the statistics
-                    await websocket.send_json(message.dict())
+                        # Send the statistics
+                        await websocket.send_json(message.dict())
+
+                        # Set the last statistics message
+                        last_statistics_message = statistics
 
                 case _:
                     # Log an error
