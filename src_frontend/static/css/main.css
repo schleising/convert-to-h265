@@ -92,12 +92,12 @@
     padding: 0.25rem 0.5rem;
     font-size: 1.1rem;
     font-weight: bold;
-    color: hsl(0, 0%, 55%);
+    color: hsl(210, 11%, 45%);
 }
 
 .active {
     background-color: hsl(120, 25%, 94%);
-    color: black;
+    color: hsl(210, 11%, 15%);
 }
 
 .progress-area {
