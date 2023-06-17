@@ -4,6 +4,7 @@ import logging
 from zoneinfo import ZoneInfo
 import signal
 import sys
+import os
 
 from .folder_walker import FolderWalker
 from .codec_detector import CodecDetector
@@ -49,15 +50,21 @@ class TaskScheduler:
             # Get the current time in UTC
             now = datetime.now().astimezone(UTC)
 
-            if now > self._next_walk_time:
-                # If the current time is after the next walk time, walk the folders
-                logging.info("Walk folders")
-                self._walk_folders()
+            logging.info(os.getenv("MAIN_BACKEND"))
 
-                # Set the next walk time to the next scan time
-                self._next_walk_time = (datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self._scan_time,
-                                                         tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(UTC)
-                logging.info(f"Next walk time: {self._next_walk_time}")
+            # Only walk the folders if this is the main backend
+            if os.getenv("MAIN_BACKEND") == "TRUE":
+                if now > self._next_walk_time:
+                    # If the current time is after the next walk time, walk the folders
+                    logging.info("Walk folders")
+                    self._walk_folders()
+
+                    # Set the next walk time to the next scan time
+                    self._next_walk_time = (datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self._scan_time,
+                                                            tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(UTC)
+                    logging.info(f"Next walk time: {self._next_walk_time}")
+            else:
+                logging.info("Not main backend, not walking folders")
 
             # Get the start conversion time in UTC
             start_conversion_datetime = datetime.combine(

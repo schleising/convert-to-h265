@@ -1,0 +1,17 @@
+version: "3.11"
+
+services:
+  backend-2:
+    build: backend
+    container_name: backend-2
+    hostname: backend-2
+    environment:
+      - MAIN_BACKEND=FALSE
+    volumes:
+      - ./src_backend:/src:ro
+      - /mnt/Media/Films:/Media/Films:rw
+      - /mnt/Media/TV:/Media/TV:rw
+      - /mnt/Media/Backup:/Backup:rw      
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
