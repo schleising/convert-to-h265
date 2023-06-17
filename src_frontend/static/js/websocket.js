@@ -210,6 +210,11 @@ function openWebSocket() {
 
                 // Check whether the page is visible
                 if (visible) {
+                    // Clear the timer if it is set
+                    if (timer != 0) {
+                        clearTimeout(timer);
+                    }
+
                     // Can call checkSocketAndSendMessage here, now the statistics message has been received and the server has responded
                     timer = setTimeout(checkSocketAndSendMessage, 1000);
                 }
