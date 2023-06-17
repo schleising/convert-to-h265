@@ -82,15 +82,22 @@
     justify-content: flex-start;
     align-items: center;
     width: 100%;
+    margin: 0rem;
+    padding: 0rem;
 }
 
 .conversion-button {
-    margin-right: 0.25rem;
+    background-color: hsl(120, 25%, 80%);
+    border: 0rem;
+    padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: hsl(0, 0%, 55%);
 }
 
 .active {
-    background-color: hsl(120, 25%, 80%);
-    /* background-color: powderblue; */
+    background-color: hsl(120, 25%, 94%);
+    color: black;
 }
 
 .progress-area {
