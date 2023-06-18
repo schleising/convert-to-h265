@@ -138,8 +138,14 @@ function openWebSocket() {
                             checkSocketAndSendMessage(event);
                         };
 
-                        // Set the text of the new element
-                        newElement.innerHTML = conversionStatus.converting_files[i].backend_name;
+                        // CHeck whether the backend name is null
+                        if (conversionStatus.converting_files[i].backend_name == null) {
+                            // Set the text of the new element
+                            newElement.innerHTML = "File " + (i + 1);
+                        } else {
+                            // Set the text of the new element
+                            newElement.innerHTML = conversionStatus.converting_files[i].backend_name;
+                        }
 
                         // Append the new element to the conversion header element
                         conversionHeaderElement.appendChild(newElement);
