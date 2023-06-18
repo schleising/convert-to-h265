@@ -52,7 +52,7 @@ class Database:
             db_file_list = await db_file.to_list(length=None)
             file_data_list = [FileData(**data) for data in db_file_list]
 
-            return file_data_list
+            return sorted(file_data_list, key=lambda file_data: file_data.backend_name)
 
         return None
 
