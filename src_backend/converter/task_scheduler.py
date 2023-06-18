@@ -64,7 +64,7 @@ class TaskScheduler:
                                                             tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(UTC)
                     logging.info(f"Next walk time: {self._next_walk_time}")
             else:
-                logging.info("Not main backend, not walking folders")
+                logging.debug("Not main backend, not walking folders")
 
             # Get the start conversion time in UTC
             start_conversion_datetime = datetime.combine(
