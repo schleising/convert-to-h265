@@ -78,13 +78,13 @@ class Converter:
     # Get the db entry with the highest bit_rate (video_information.streams[first_video_stream].bit_rate) 
     # that has not been converted yet and is not currently being converted
     def _get_highest_bit_rate(self) -> FileData | None:
-        # Get the file with the highest bit rate that has not been converted yet
-        db_file = media_collection.find_one({
+        # Get the file with the highest bit rate that has not been converted yet and set converting to True in a single atomic operation
+        db_file = media_collection.find_one_and_update({
             "conversion_required": True,
             "converting": False,
             "converted": False,
             "conversion_error": False
-        }, sort=[("video_information.streams.0.bit_rate", DESCENDING)])
+        }, {"$set": {"converting": True}}, sort=[("video_information.streams.0.bit_rate", DESCENDING)])
 
         # Check if there is a file that needs to be converted
         if db_file is not None:
