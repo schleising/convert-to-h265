@@ -4,6 +4,7 @@ import logging
 import signal
 import sys
 import shutil
+import os
 
 from pymongo import DESCENDING
 
@@ -112,6 +113,7 @@ class Converter:
             # Update the file_data object
             self._file_data.converting = True
             self._file_data.start_conversion_time = datetime.now()
+            self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})

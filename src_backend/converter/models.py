@@ -126,3 +126,4 @@ class FileData(BaseModel):
     first_subtitle_stream: int | None
     pre_conversion_size: int
     current_size: int
+    backend_name: str

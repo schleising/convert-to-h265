@@ -139,7 +139,7 @@ function openWebSocket() {
                         };
 
                         // Set the text of the new element
-                        newElement.innerHTML = "Conv " + (i + 1);
+                        newElement.innerHTML = conversionStatus.converting_files[i].backend_name;
 
                         // Append the new element to the conversion header element
                         conversionHeaderElement.appendChild(newElement);

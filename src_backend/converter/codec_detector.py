@@ -133,6 +133,7 @@ class CodecDetector:
                         first_subtitle_stream=first_subtitle_stream,
                         pre_conversion_size=file_size,
                         current_size=file_size,
+                        backend_name="None"
                     )
 
                     # Append the FileData object to the list of bulk write operations

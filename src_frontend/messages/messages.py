@@ -12,6 +12,7 @@ class ConvertingFileData(BaseModel):
     progress: float
     time_since_start: str
     time_remaining: str
+    backend_name: str
 
 class ConvertingFilesMessage(BaseModel):
     converting_files: list[ConvertingFileData]
