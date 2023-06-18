@@ -93,6 +93,8 @@
     font-size: 1.1rem;
     font-weight: bold;
     color: hsl(210, 11%, 45%);
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
 }
 
 .active {
