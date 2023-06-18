@@ -84,6 +84,7 @@
     width: 100%;
     margin: 0rem;
     padding: 0rem;
+    overflow-x: scroll;
 }
 
 .conversion-button {
@@ -95,6 +96,7 @@
     color: hsl(210, 11%, 45%);
     border-top-left-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
+    white-space: nowrap;
 }
 
 .active {
