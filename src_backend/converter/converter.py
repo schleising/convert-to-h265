@@ -174,26 +174,38 @@ class Converter:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
 
-                # Create a path for the backup file
-                backup_path = Path(config.config_data.folders.backup, input_file_path.name)
-
-                # Copy the input file to the backup folder
-                logging.info(f'Copying {input_file_path} to backup folder')
-                shutil.copy2(input_file_path, backup_path)
-
-                # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
-                self._output_file_path = self._output_file_path.replace(input_file_path)
-
-                # Log that the copy and replace was successful
-                logging.info(f'File {input_file_path} backed up successfully')
-
                 # Update the file_data object
                 self._file_data.converting = False
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
                 self._file_data.end_conversion_time = datetime.now()
                 self._file_data.percentage_complete = 100
-                self._file_data.current_size = input_file_path.stat().st_size
+                self._file_data.current_size = self._output_file_path.stat().st_size
 
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+
+                # Create a path for the backup file
+                backup_path = Path(config.config_data.folders.backup, input_file_path.name)
+
+                # Copy the input file to the backup folder
+                logging.info(f'Copying {input_file_path} to backup folder')
+
+                try:
+                    shutil.copy2(input_file_path, backup_path)
+
+                    # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
+                    self._output_file_path = self._output_file_path.replace(input_file_path)
+                except OSError as e:
+                    # There was an error copying the file
+                    logging.error(f'Error copying {input_file_path} to backup folder')
+
+                    # Update the file_data object
+                    self._file_data.conversion_error = True
+
+                    # Update the file in MongoDB
+                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                else:
+                    # Log that the copy and replace was successful
+                    logging.info(f'File {input_file_path} backed up successfully')
+
