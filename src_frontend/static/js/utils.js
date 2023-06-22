@@ -67,8 +67,8 @@ function appendKeyValueElement(element, key, value, additionalKeyClass = [], add
         valueElement.classList.add(...additionalValueClass);
     }
 
-    keyElement.innerHTML = key;
-    valueElement.innerHTML = value;
+    keyElement.innerText = key;
+    valueElement.innerText = value;
 
     element.appendChild(keyElement);
     element.appendChild(valueElement);

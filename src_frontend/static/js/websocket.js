@@ -13,6 +13,9 @@ var visible = true;
 // Variable to store the conversion number
 var conversionNumber = 0;
 
+// An array to store the tab names
+var currentTabNames = [];
+
 // Add a callback for state changes
 document.addEventListener('readystatechange', event => {
     if (event.target.readyState === "complete") {
@@ -83,28 +86,25 @@ function openWebSocket() {
                 progressElement = document.getElementById("progress-details");
                 progressElement.innerHTML = "";
 
-                // Check whether conversion status is null
-                if (conversionStatus == null) {
-                    // Append a key value element to the progress element
-                    appendKeyValueElement(progressElement, "No file being converted", "", [], []);
+                // Get the number of files being converted
+                numFiles = conversionStatus.converting_files.length;
 
-                    // Set the value of the file-progress element to 0
-                    document.getElementById("file-progress").value = 0;
-                } else {
-                    // Get the number of files being converted
-                    numFiles = conversionStatus.converting_files.length;
+                // Check whether the conversion number is greater than the number of files being converted
+                if (conversionNumber >= numFiles) {
+                    // Set the conversion number to the number of files being converted minus 1
+                    conversionNumber = numFiles - 1;
 
-                    // Check whether the conversion number is greater than the number of files being converted
-                    if (conversionNumber >= numFiles) {
-                        // Set the conversion number to the number of files being converted minus 1
-                        conversionNumber = numFiles - 1;
-
-                        // If the conversion number is less than 0, set it to 0
-                        if (conversionNumber < 0) {
-                            conversionNumber = 0;
-                        }
+                    // If the conversion number is less than 0, set it to 0
+                    if (conversionNumber < 0) {
+                        conversionNumber = 0;
                     }
+                }
 
+                // Get a list of the new tab names from the backend names
+                newTabNames = conversionStatus.converting_files.map(file => file.backend_name);
+
+                // If the array of new tab names is not equal to the array of current tab names, update the tabs
+                if (newTabNames.toString() != currentTabNames.toString()) {
                     // Add a clickable element with the conversion number to the conversion-header element
                     conversionHeaderElement = document.getElementById("conversion-header");
 
@@ -149,69 +149,74 @@ function openWebSocket() {
 
                         // Append the new element to the conversion header element
                         conversionHeaderElement.appendChild(newElement);
-
-                        // Check whether the conversion number is equal to the current index
-                        if (conversionNumber == i) {
-                            // Set the new element to be active
-                            newElement.className = "conversion-button active";
-                        }
                     }
 
-                    // Only show the conversion data if numFiles is greater than 0
-                    if (numFiles > 0) {
-                        // Parse the time remaining which is in Python timedelta string format into a Date object 
-                        time_array = conversionStatus.converting_files[conversionNumber].time_remaining.match(/[0-9]+/g);
+                    // Set the current tab names to the new tab names
+                    currentTabNames = newTabNames;
+                }
 
-                        // Check that the time array is not null
-                        if (time_array == null) {
-                            days = 0;
-                            hours = 0;
-                            minutes = 0;
-                            seconds = 0;
-                        } else if (time_array.length == 4) {
-                            days = parseInt(time_array[0]);
-                            hours = parseInt(time_array[1]);
-                            minutes = parseInt(time_array[2]);
-                            seconds = parseInt(time_array[3]);
-                        } else if (time_array.length == 3) {
-                            days = 0;
-                            hours = parseInt(time_array[0]);
-                            minutes = parseInt(time_array[1]);
-                            seconds = parseInt(time_array[2]);
-                        } else {
-                            console.log("Unknown time array length: " + time_array.length);
-                            days = 0;
-                            hours = 0;
-                            minutes = 0;
-                            seconds = 0;
-                        }
+                // Set all tabs to inactive
+                for (i = 0; i < numFiles; i++) {
+                    document.getElementById("conversion-" + i).className = "conversion-button";
+                }
 
-                        // Create a new Date object which is the current time plus the time remaining
-                        expected_completion_time = new Date();
-                        expected_completion_time.setDate(expected_completion_time.getDate() + days);
-                        expected_completion_time.setHours(expected_completion_time.getHours() + hours);
-                        expected_completion_time.setMinutes(expected_completion_time.getMinutes() + minutes);
-                        expected_completion_time.setSeconds(expected_completion_time.getSeconds() + seconds);
+                // Set the active tab to the conversion number
+                document.getElementById("conversion-" + conversionNumber).className = "conversion-button active";
 
-                        // Format the expected completion time into a string with the format %A HH:MM
-                        expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
+                // Only show the conversion data if numFiles is greater than 0
+                if (numFiles > 0) {
+                    // Parse the time remaining which is in Python timedelta string format into a Date object 
+                    time_array = conversionStatus.converting_files[conversionNumber].time_remaining.match(/[0-9]+/g);
 
-                        // Append key / value elements to the progress-details element
-                        appendKeyValueElement(progressElement, "Filename:", conversionStatus.converting_files[conversionNumber].filename, [], ["filename", "data-value-left"]);
-                        appendKeyValueElement(progressElement, "Complete:", conversionStatus.converting_files[conversionNumber].progress.toFixed(2) + "%", [], ["data-value-left"]);
-                        appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.converting_files[conversionNumber].time_since_start, [], ["data-value-left"]);
-                        appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.converting_files[conversionNumber].time_remaining, [], ["data-value-left"]);
-                        appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
-
-                        // Set the value of the file-progress element to the progress
-                        document.getElementById("file-progress").value = conversionStatus.converting_files[conversionNumber].progress;
+                    // Check that the time array is not null
+                    if (time_array == null) {
+                        days = 0;
+                        hours = 0;
+                        minutes = 0;
+                        seconds = 0;
+                    } else if (time_array.length == 4) {
+                        days = parseInt(time_array[0]);
+                        hours = parseInt(time_array[1]);
+                        minutes = parseInt(time_array[2]);
+                        seconds = parseInt(time_array[3]);
+                    } else if (time_array.length == 3) {
+                        days = 0;
+                        hours = parseInt(time_array[0]);
+                        minutes = parseInt(time_array[1]);
+                        seconds = parseInt(time_array[2]);
                     } else {
-                        // Append a key value element to the progress element
-                        appendKeyValueElement(progressElement, "No file being converted", "", [], []);
-
-                        // Set the value of the file-progress element to 0
-                        document.getElementById("file-progress").value = 0;
+                        console.log("Unknown time array length: " + time_array.length);
+                        days = 0;
+                        hours = 0;
+                        minutes = 0;
+                        seconds = 0;
                     }
+
+                    // Create a new Date object which is the current time plus the time remaining
+                    expected_completion_time = new Date();
+                    expected_completion_time.setDate(expected_completion_time.getDate() + days);
+                    expected_completion_time.setHours(expected_completion_time.getHours() + hours);
+                    expected_completion_time.setMinutes(expected_completion_time.getMinutes() + minutes);
+                    expected_completion_time.setSeconds(expected_completion_time.getSeconds() + seconds);
+
+                    // Format the expected completion time into a string with the format %A HH:MM
+                    expected_completion_time = expected_completion_time.toLocaleString('en-GB', {weekday: 'long', hour12: false, hour: '2-digit', minute: '2-digit'});
+
+                    // Append key / value elements to the progress-details element
+                    appendKeyValueElement(progressElement, "Filename:", conversionStatus.converting_files[conversionNumber].filename, [], ["filename", "data-value-left"]);
+                    appendKeyValueElement(progressElement, "Complete:", conversionStatus.converting_files[conversionNumber].progress.toFixed(2) + "%", [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.converting_files[conversionNumber].time_since_start, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.converting_files[conversionNumber].time_remaining, [], ["data-value-left"]);
+                    appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
+
+                    // Set the value of the file-progress element to the progress
+                    document.getElementById("file-progress").value = conversionStatus.converting_files[conversionNumber].progress;
+                } else {
+                    // Append a key value element to the progress element
+                    appendKeyValueElement(progressElement, "No file being converted", "", [], []);
+
+                    // Set the value of the file-progress element to 0
+                    document.getElementById("file-progress").value = 0;
                 }
 
                 // Check whether the page is visible
@@ -232,10 +237,10 @@ function openWebSocket() {
 
                 // Check whether files converted is null
                 if (filesConverted == null) {
-                    document.getElementById("converted-files").innerHTML = "No files converted";
+                    document.getElementById("converted-files").innerText = "No files converted";
                 } else {
                     // Clear the converted-files element
-                    document.getElementById("converted-files").innerHTML = "";
+                    document.getElementById("converted-files").innerText = "";
 
                     // Loop through the filenames
                     for (i = 0; i < filesConverted.converted_files.length; i++) {
