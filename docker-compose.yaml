@@ -16,6 +16,51 @@ services:
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
+  backend-2:
+    build: backend
+    container_name: backend-2
+    hostname: backend-2
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=BE-2
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src_backend:/src:ro
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-3:
+    build: backend
+    container_name: backend-3
+    hostname: backend-3
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=BE-3
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src_backend:/src:ro
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-4:
+    build: backend
+    container_name: backend-4
+    hostname: backend-4
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=BE-4
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src_backend:/src:ro
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
   frontend:
     build: frontend
     hostname: frontend

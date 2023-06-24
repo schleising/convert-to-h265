@@ -11,7 +11,8 @@
 [folders]
     # The path to the folders to scan
     include = [
-        "/Media",
+        "/Media/TV",
+        "/Media/Films",
     ]
 
     # The path to folders to exclude from the scan
@@ -20,7 +21,7 @@
     ]
 
     # Folder to backup converted files to be checked before deletion
-    backup = "/Backup"
+    backup = "/Media/Backup"
 
 # Schedule definitions
 [schedule]

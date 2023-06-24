@@ -122,7 +122,7 @@ class Converter:
             input_file_path = Path(self._file_data.filename)
 
             # Create the output file path
-            self._output_file_path = input_file_path.with_suffix(".hevc.mkv")
+            self._output_file_path = (config.config_data.folders.backup / input_file_path.name).with_suffix(".hevc.mkv")
 
             # Convert the file
             self._ffmpeg = (
@@ -192,7 +192,8 @@ class Converter:
                 logging.info(f'Copying {input_file_path} to backup folder')
 
                 try:
-                    shutil.copy2(input_file_path, backup_path)
+                    # Copy the file
+                    input_file_path.link_to(backup_path)
 
                     # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
                     self._output_file_path = self._output_file_path.replace(input_file_path)
