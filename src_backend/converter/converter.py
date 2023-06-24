@@ -3,7 +3,6 @@ from pathlib import Path
 import logging
 import signal
 import sys
-import shutil
 import os
 
 from pymongo import DESCENDING
