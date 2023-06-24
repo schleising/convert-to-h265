@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pymongo import DESCENDING
 
-from .models import FileData
+from .models import FileData, ConvertedFileDataFromDb
 from ..messages.messages import StatisticsMessage, ConvertedFileData
 from . import media_collection
 
@@ -11,7 +11,7 @@ class Database:
     def __init__(self) -> None:
         pass
 
-    def _create_converted_data(self, file_data: FileData) -> ConvertedFileData:
+    def _create_converted_data(self, file_data: ConvertedFileDataFromDb) -> ConvertedFileData:
         # Calculate the compression percentage
         compression_percentage = (1 - (file_data.current_size / file_data.pre_conversion_size)) * 100
 
@@ -23,6 +23,7 @@ class Database:
 
     async def get_converted_files(self) -> list[ConvertedFileData]:
         # Find files that have been converted in the last week, sorted by the time they were converted in descending order
+        # Returning only the filename, pre_conversion_size and current_size fields
         db_file_cursor = media_collection.find({
             "conversion_required": True,
             "converting": False,
@@ -31,13 +32,13 @@ class Database:
             "end_conversion_time": {
                 "$gte": datetime.now() - timedelta(days=7)
             },
-        }, sort=[("end_conversion_time", DESCENDING)])
+        }, sort=[("end_conversion_time", DESCENDING)], projection=["filename", "pre_conversion_size", "current_size"])
 
         # Convert the cursor to a list
         db_file_list = await db_file_cursor.to_list(length=None)
 
         # Convert the list of FileData objects to a list of file paths
-        file_list = [self._create_converted_data(FileData(**data)) for data in db_file_list]
+        file_list = [self._create_converted_data(ConvertedFileDataFromDb(**data)) for data in db_file_list]
 
         return file_list
     

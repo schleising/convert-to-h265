@@ -127,3 +127,8 @@ class FileData(BaseModel):
     pre_conversion_size: int
     current_size: int
     backend_name: str = "None"
+
+class ConvertedFileDataFromDb(BaseModel):
+    filename: str
+    pre_conversion_size: int
+    current_size: int

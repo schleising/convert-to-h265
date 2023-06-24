@@ -160,11 +160,11 @@ function openWebSocket() {
                     document.getElementById("conversion-" + i).className = "conversion-button";
                 }
 
-                // Set the active tab to the conversion number
-                document.getElementById("conversion-" + conversionNumber).className = "conversion-button active";
-
                 // Only show the conversion data if numFiles is greater than 0
                 if (numFiles > 0) {
+                    // Set the active tab to the conversion number
+                    document.getElementById("conversion-" + conversionNumber).className = "conversion-button active";
+    
                     // Parse the time remaining which is in Python timedelta string format into a Date object 
                     time_array = conversionStatus.converting_files[conversionNumber].time_remaining.match(/[0-9]+/g);
 
