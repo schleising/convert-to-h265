@@ -3,6 +3,7 @@ from pathlib import Path
 import logging
 import signal
 import sys
+import shutil
 import os
 
 from pymongo import DESCENDING
@@ -187,25 +188,60 @@ class Converter:
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
 
-                # Copy the input file to the backup folder
-                logging.info(f'Copying {input_file_path} to backup folder')
+                try:
+                    # Log that we are hardlinking the input file to the backup folder
+                    logging.info(f'Hardlinking {input_file_path} to backup folder')
+
+                    # Hardlink the input file to the backup folder
+                    input_file_path.link_to(backup_path)
+                except OSError as e:
+                    # There was an error creating the hard link, try copying the file instead
+                    try:
+                        # Log that the hard link failed
+                        logging.info(f'Hardlinking {input_file_path} to backup folder failed, trying to copy instead')
+
+                        # Copy the file to the backup folder
+                        shutil.copy2(input_file_path, backup_path)
+                    except OSError as e:
+                        # There was an error copying the file
+                        logging.error(f'Error copying {input_file_path} to backup folder')
+
+                        # Update the file_data object to indicate that there was an error
+                        self._file_data.conversion_error = True
+
+                        # Update the file in MongoDB
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                    else:
+                        # Log that the copy was successful
+                        logging.info(f'File {input_file_path} backed up successfully')
+                else:
+                    # Log that the hard link was successful
+                    logging.info(f'File {input_file_path} hardlink created successfully')
 
                 try:
-                    # Copy the file
-                    input_file_path.link_to(backup_path)
+                    # Log that we are replacing the input file with the output file
+                    logging.info(f'Replacing {input_file_path} with {self._output_file_path}')
 
                     # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
                     self._output_file_path = self._output_file_path.replace(input_file_path)
+
                 except OSError as e:
-                    # There was an error copying the file
-                    logging.error(f'Error copying {input_file_path} to backup folder')
+                    # If there was an error replacing the file, try copying the file instead
+                    try:
+                        # Copy the file to the original folder
+                        shutil.copy2(self._output_file_path, input_file_path)
+                    except OSError as e:
+                        # There was an error copying the file
+                        logging.error(f'Error copying {self._output_file_path} to {input_file_path}')
 
-                    # Update the file_data object
-                    self._file_data.conversion_error = True
+                        # Update the file_data object to indicate that there was an error
+                        self._file_data.conversion_error = True
 
-                    # Update the file in MongoDB
-                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                        # Update the file in MongoDB
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                    else:
+                        # Log that the copy was successful
+                        logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
                 else:
                     # Log that the copy and replace was successful
-                    logging.info(f'File {input_file_path} backed up successfully')
-
+                    logging.info(f'File {input_file_path} replaced successfully with {self._output_file_path}')
