@@ -136,6 +136,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             messageBody=files_converted_message
                         )
 
+                        # Log the files converted
+                        logging.debug(f'Files converted: {message}')
+
                         # Send the files converted
                         await websocket.send_json(message.dict())
 
