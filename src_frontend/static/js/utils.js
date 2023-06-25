@@ -34,7 +34,9 @@ function trimStringToElement(element) {
     oldString = `${element.title}`;
 
     // Set the innerText to the old string
-    element.innerText = oldString;
+    if (element.innerText != oldString) {
+        element.innerText = oldString;
+    }
 
     // Set the point to start removing characters from the string
     maxCharacters = oldString.length - 7;
