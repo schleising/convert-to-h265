@@ -39,7 +39,7 @@ class Converter:
                 logging.info("Stopping Conversion due to SIGTERM...")
                 self._cleanup_and_terminate()
 
-    def _cleanup_and_terminate(self) -> None:
+    def _cleanup_and_terminate(self, conversion_failed: bool = False) -> None:
         if self._file_data is not None:
             # Log that ffmpeg was terminated and we are cleaning up
             logging.info(f"ffmpeg terminating for {self._file_data.filename}. Cleaning up...")
@@ -48,6 +48,9 @@ class Converter:
             self._file_data.converting = False
             self._file_data.start_conversion_time = None
             self._file_data.percentage_complete = 0
+
+            if conversion_failed:
+                self._file_data.conversion_error = True
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
@@ -72,8 +75,9 @@ class Converter:
             # Set ffmpeg to None
             self._ffmpeg = None
 
-        # Exit the application
-        sys.exit(0)
+        if not conversion_failed:
+            # Exit the application
+            sys.exit(0)
 
     # Get the db entry with the highest bit_rate (video_information.streams[first_video_stream].bit_rate) 
     # that has not been converted yet and is not currently being converted
@@ -165,11 +169,18 @@ class Converter:
                 self._ffmpeg.execute()
             except FFmpegError as e:
                 # There was an error executing the ffmpeg command
-                logging.error(f"Error executing ffmpeg command for {self._file_data.filename}")
+                logging.error(f"FFmpeg Error executing ffmpeg command for {self._file_data.filename}")
                 logging.error(e)
 
                 # Clean up and terminate
-                self._cleanup_and_terminate()
+                self._cleanup_and_terminate(conversion_failed=True)
+            except UnicodeDecodeError as e:
+                # There was an error executing the ffmpeg command
+                logging.error(f"Unicode Decode Error executing ffmpeg command for {self._file_data.filename}")
+                logging.error(e)
+
+                # Clean up and terminate
+                self._cleanup_and_terminate(conversion_failed=True)
             else:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
