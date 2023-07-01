@@ -4,11 +4,6 @@ import tomllib
 
 from pydantic import BaseModel
 
-class Mongo(BaseModel):
-    uri: str
-    database: str
-    media_collection: str
-
 class Folders(BaseModel):
     include: list[Path]
     exclude: list[Path] | None
@@ -21,7 +16,6 @@ class Schedule(BaseModel):
     end_conversion_time: time
 
 class ConfigData(BaseModel):
-    mongo: Mongo
     folders: Folders
     schedule: Schedule
 

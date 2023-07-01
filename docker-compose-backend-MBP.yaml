@@ -9,6 +9,9 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-1
       - ONLY_TV_SHOWS=true
+      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
@@ -24,6 +27,9 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-2
       - ONLY_TV_SHOWS=true
+      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
@@ -39,6 +45,9 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-3
       - ONLY_TV_SHOWS=true
+      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
@@ -54,6 +63,9 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-4
       - ONLY_TV_SHOWS=true
+      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
