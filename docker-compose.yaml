@@ -15,6 +15,7 @@ services:
       - mongodb
     volumes:
       - ./src_backend:/src:ro
+      - /volume2/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"

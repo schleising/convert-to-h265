@@ -15,6 +15,7 @@ services:
       - mongodb
     volumes:
       - ./src_backend:/src:ro
+      - /Users/steve/Downloads/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
@@ -33,6 +34,7 @@ services:
       - mongodb
     volumes:
       - ./src_backend:/src:ro
+      - /Users/steve/Downloads/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
