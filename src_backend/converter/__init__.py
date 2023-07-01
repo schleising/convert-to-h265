@@ -1,5 +1,6 @@
 import logging
 import atexit
+import os
 
 from pymongo import MongoClient, ASCENDING
 from bson.codec_options import CodecOptions
@@ -23,6 +24,12 @@ logging.info("Connected to MongoDB")
 
 # Register the close_mongo_connection function to run at exit
 atexit.register(_close_mongo_connection)
+
+# Are we only converting TV shows
+only_tv_shows = os.environ.get("ONLY_TV_SHOWS", "false").lower() == "true"
+
+# Are we going for smallest file sizes first
+smallest_first = os.environ.get("SMALLEST_FIRST", "false").lower() == "true"
 
 # Get the database
 _db = _client[config.config_data.mongo.database]

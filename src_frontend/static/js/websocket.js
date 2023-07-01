@@ -310,18 +310,6 @@ function openWebSocket() {
             default:
                 console.log("Unknown message type received: " + event.data.messageType);
         }
-
-        // Get all the elements with the class "filename"
-        filenameElements = document.getElementsByClassName("filename");
-
-        // Loop through the filename elements
-        for (i = 0; i < filenameElements.length; i++) {
-            // Set the title of the filename element to the full filename
-            filenameElements[i].title = `${filenameElements[i].innerHTML}`;
-
-            // Trim the filename to the width of the filename element
-            trimStringToElement(filenameElements[i]);
-        }
     };
 
     // Add the event listener
