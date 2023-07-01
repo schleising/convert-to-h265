@@ -1,0 +1,33 @@
+version: "3.11"
+
+services:
+  backend-1:
+    build: backend
+    container_name: RPi-1
+    hostname: RPi-1
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=RPi-1
+      - SMALLEST_FIRST=true
+    volumes:
+      - ./src_backend:/src:ro
+      - /mnt/Media:/Media:rw
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-2:
+    build: backend
+    container_name: RPi-2
+    hostname: RPi-2
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=RPi-2
+      - SMALLEST_FIRST=true
+    volumes:
+      - ./src_backend:/src:ro
+      - /mnt/Media:/Media:rw
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
