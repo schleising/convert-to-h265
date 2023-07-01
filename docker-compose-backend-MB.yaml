@@ -1,0 +1,45 @@
+version: "3.11"
+
+services:
+  backend-1:
+    build: backend
+    container_name: MB-1
+    hostname: MB-1
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=MB-1
+    volumes:
+      - ./src_backend:/src:ro
+      - /Volumes/Media:/Media:rw
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-2:
+    build: backend
+    container_name: MB-2
+    hostname: MB-2
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=MB-2
+    volumes:
+      - ./src_backend:/src:ro
+      - /Volumes/Media:/Media:rw
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-3:
+    build: backend
+    container_name: MB-3
+    hostname: MB-3
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=MB-3
+    volumes:
+      - ./src_backend:/src:ro
+      - /Volumes/Media:/Media:rw
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
