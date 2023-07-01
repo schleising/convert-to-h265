@@ -3,11 +3,29 @@ version: "3.11"
 services:
   backend-1:
     build: backend
-    container_name: NAS-1
-    hostname: NAS-1
+    container_name: MBP-1
+    hostname: MBP-1
     environment:
       - MAIN_BACKEND=TRUE
-      - BACKEND_NAME=NAS-1
+      - BACKEND_NAME=MBP-1
+      - DB_URL=mongodb://mongodb:27017/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
+    depends_on:
+      - mongodb
+    volumes:
+      - ./src_backend:/src:ro
+    restart: "no"
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-2:
+    build: backend
+    container_name: MBP-2
+    hostname: MBP-2
+    environment:
+      - MAIN_BACKEND=FALSE
+      - BACKEND_NAME=MBP-2
       - DB_URL=mongodb://mongodb:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
