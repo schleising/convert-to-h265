@@ -6,13 +6,13 @@ import sys
 import shutil
 import os
 
-from pymongo import DESCENDING
+from pymongo import DESCENDING, ASCENDING
 
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
 
 from .models import FileData
-from . import media_collection, config
+from . import media_collection, config, only_tv_shows, smallest_first
 
 class Converter:
     def __init__(self):
@@ -100,9 +100,57 @@ class Converter:
         else:
             return None
 
+    # Get the db entry with the highest bit_rate (video_information.streams[first_video_stream].bit_rate) 
+    # from the TV files that has not been converted yet and is not currently being converted
+    def _get_highest_bit_rate_tv(self) -> FileData | None:
+        # Get the file with the highest bit rate that has not been converted yet and set converting to True in a single atomic operation
+        db_file = media_collection.find_one_and_update({
+            "filename": {"$regex": r"\/TV"},
+            "conversion_required": True,
+            "converting": False,
+            "converted": False,
+            "conversion_error": False
+        }, {"$set": {"converting": True}}, sort=[("video_information.streams.0.bit_rate", DESCENDING)])
+
+        # Check if there is a file that needs to be converted
+        if db_file is not None:
+            # Get the file data
+            file_data = FileData(**db_file)
+
+            # Return the file data
+            return file_data
+        else:
+            return None
+
+    # Get the db entry with the highest bit_rate (video_information.streams[first_video_stream].bit_rate) 
+    # that has not been converted yet and is not currently being converted
+    def _get_smallest_file(self) -> FileData | None:
+        # Get the file with the highest bit rate that has not been converted yet and set converting to True in a single atomic operation
+        db_file = media_collection.find_one_and_update({
+            "conversion_required": True,
+            "converting": False,
+            "converted": False,
+            "conversion_error": False
+        }, {"$set": {"converting": True}}, sort=[("pre_conversion_size", ASCENDING)])
+
+        # Check if there is a file that needs to be converted
+        if db_file is not None:
+            # Get the file data
+            file_data = FileData(**db_file)
+
+            # Return the file data
+            return file_data
+        else:
+            return None
+
     def convert(self):
         # Get a file that needs to be converted from MongoDB
-        self._file_data = self._get_highest_bit_rate()
+        if smallest_first:
+            self._file_data = self._get_smallest_file()
+        elif only_tv_shows:
+            self._file_data = self._get_highest_bit_rate_tv()
+        else:
+            self._file_data = self._get_highest_bit_rate()
 
         if self._file_data is not None:
             # Log the bitrate of the file we are converting
