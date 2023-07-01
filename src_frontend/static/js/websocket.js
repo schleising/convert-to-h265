@@ -298,6 +298,14 @@ function openWebSocket() {
                             case 'total_conversion_time':
                                 key = "Total Conversion Time: ";
                                 break;
+                            case 'total_size_before_conversion_gb':
+                                key = "Total Size Before Conversion: ";
+                                value = value + " GB";
+                                break;
+                            case 'total_size_after_conversion_gb':
+                                key = "Total Size After Conversion: ";
+                                value = value + " GB";
+                                break;
                             default:
                                 console.log("Unknown key: " + key);
                         }
