@@ -11,6 +11,8 @@ from pymongo import DESCENDING, ASCENDING
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
 
+from notify_run import Notify
+
 from .models import FileData
 from . import media_collection, config, only_tv_shows, smallest_first
 
@@ -28,6 +30,21 @@ class Converter:
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+
+        # Read the notify.run endpoint from the notify-run-channel.txt file
+        try:
+            with open("/src/notify-run-channel.txt", "r") as f:
+                endpoint = f.read().strip()
+        except FileNotFoundError:
+            # Log that notify-run-channel.txt was not found
+            logging.warning("notify-run-channel.txt was not found. Notify.run will not be used.")
+            endpoint = None
+
+        # If the endpoint is set, register notify.run
+        if endpoint is not None:
+            self._notify = Notify(endpoint=endpoint)
+        else:
+            self._notify = None
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -51,6 +68,10 @@ class Converter:
 
             if conversion_failed:
                 self._file_data.conversion_error = True
+
+                # If notify.run is configured, send a notification
+                if self._notify is not None:
+                    self._notify.send(f"{Path(self._file_data.filename).name} Conversion Failed on {self._file_data.backend_name}")
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
@@ -244,6 +265,10 @@ class Converter:
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
 
+                # If notify.run is configured, send a notification
+                if self._notify is not None:
+                    self._notify.send(f"Successfully converted {input_file_path.name} on {self._file_data.backend_name}")
+
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
 
@@ -270,6 +295,10 @@ class Converter:
 
                         # Update the file in MongoDB
                         media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+
+                        # If notify.run is configured, send a notification
+                        if self._notify is not None:
+                            self._notify.send(f"{Path(self._file_data.filename).name} Backup Failed on {self._file_data.backend_name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {input_file_path} backed up successfully')
@@ -298,6 +327,10 @@ class Converter:
 
                         # Update the file in MongoDB
                         media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+
+                        # If notify.run is configured, send a notification
+                        if self._notify is not None:
+                            self._notify.send(f"{Path(self._file_data.filename).name} Replace Failed on {self._file_data.backend_name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
