@@ -187,11 +187,11 @@ class Database:
             }
         ]).to_list(length=None)
 
-        # Convert the total number of bytes to gigabytes
+        # Convert the total number of bytes to terabytes
         if total_size_before_conversion_db:
-            total_size_before_conversion = float(total_size_before_conversion_db[0]["total"] / 1000000000)
+            total_size_before_conversion = float(total_size_before_conversion_db[0]["total"] / 1000000000000)
         else:
-            # If there are no files in the database, set the total number of gigabytes to 0
+            # If there are no files in the database, set the total number of terabytes to 0
             total_size_before_conversion = 0
 
         # Get the total size of all of the video files after conversion by summing the current_size field
@@ -209,11 +209,11 @@ class Database:
             }
         ]).to_list(length=None)
 
-        # Convert the total number of bytes to gigabytes
+        # Convert the total number of bytes to terabytes
         if total_size_after_conversion_db:
-            total_size_after_conversion = float(total_size_after_conversion_db[0]["total"] / 1000000000)
+            total_size_after_conversion = float(total_size_after_conversion_db[0]["total"] / 1000000000000)
         else:
-            # If there are no files in the database, set the total number of gigabytes to 0
+            # If there are no files in the database, set the total number of terabytes to 0
             total_size_after_conversion = total_size_before_conversion
 
         # Create a StatisticsMessage from the database objects
@@ -226,8 +226,8 @@ class Database:
             gigabytes_saved=round(gigabytes_saved, 3),
             percentage_saved=int(percentage_saved),
             total_conversion_time=total_conversion_time_string,
-            total_size_before_conversion_gb=round(total_size_before_conversion, 3),
-            total_size_after_conversion_gb=round(total_size_after_conversion, 3)
+            total_size_before_conversion_tb=round(total_size_before_conversion, 3),
+            total_size_after_conversion_tb=round(total_size_after_conversion, 3)
         )
 
         # Return the StatisticsMessage

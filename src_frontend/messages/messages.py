@@ -33,8 +33,8 @@ class StatisticsMessage(BaseModel):
     gigabytes_saved: float
     percentage_saved: int
     total_conversion_time: str
-    total_size_before_conversion_gb: float
-    total_size_after_conversion_gb: float
+    total_size_before_conversion_tb: float
+    total_size_after_conversion_tb: float
 
 class Message(BaseModel):
     messageType: MessageTypes
