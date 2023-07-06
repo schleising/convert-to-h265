@@ -250,6 +250,13 @@ class Converter:
 
                 # Clean up and terminate
                 self._cleanup_and_terminate(conversion_failed=True)
+            except ValueError as e:
+                # There was an error executing the ffmpeg command
+                logging.error(f"Value Error executing ffmpeg command for {self._file_data.filename}")
+                logging.error(e)
+
+                # Clean up and terminate
+                self._cleanup_and_terminate(conversion_failed=True)
             else:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
