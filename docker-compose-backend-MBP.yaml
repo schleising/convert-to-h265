@@ -54,21 +54,3 @@ services:
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
-
-  backend-4:
-    build: backend
-    container_name: MBP-4
-    hostname: MBP-4
-    environment:
-      - MAIN_BACKEND=FALSE
-      - BACKEND_NAME=MBP-4
-      - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://SteveDS920:27018/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
-    restart: "no"
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
