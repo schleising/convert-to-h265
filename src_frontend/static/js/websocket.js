@@ -306,6 +306,12 @@ function openWebSocket() {
                                 key = "Total Size After Conversion: ";
                                 value = value + " TB";
                                 break;
+                            case 'films_converted':
+                                key = "Films Converted: ";
+                                break;
+                            case 'films_to_convert':
+                                key = "Films to Convert: ";
+                                break;
                             default:
                                 console.log("Unknown key: " + key);
                         }

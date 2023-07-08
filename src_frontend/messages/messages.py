@@ -35,6 +35,8 @@ class StatisticsMessage(BaseModel):
     total_conversion_time: str
     total_size_before_conversion_tb: float
     total_size_after_conversion_tb: float
+    films_converted: int
+    films_to_convert: int
 
 class Message(BaseModel):
     messageType: MessageTypes

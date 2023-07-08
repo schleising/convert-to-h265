@@ -216,6 +216,26 @@ class Database:
             # If there are no files in the database, set the total number of terabytes to 0
             total_size_after_conversion = total_size_before_conversion
 
+        # Get the number of films which have been converted
+        total_films_converted = await media_collection.count_documents({
+            "converted": True,
+            "filename": {"$regex": r"Films"}
+        })
+
+        # Get the number of films which have to be converted
+        total_films_to_convert = await media_collection.count_documents({
+            "conversion_required": True,
+            "converted": False,
+            "conversion_error": False,
+            "filename": {"$regex": r"Films"}
+        })
+
+        # Get the number of films which are currently being converted
+        total_films_converting = await media_collection.count_documents({
+            "conversion_in_progress": True,
+            "filename": {"$regex": r"Films"}
+        })
+
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
             total_files=total_files,
@@ -227,7 +247,9 @@ class Database:
             percentage_saved=int(percentage_saved),
             total_conversion_time=total_conversion_time_string,
             total_size_before_conversion_tb=round(total_size_before_conversion, 3),
-            total_size_after_conversion_tb=round(total_size_after_conversion, 3)
+            total_size_after_conversion_tb=round(total_size_after_conversion, 3),
+            films_converted=total_films_converted,
+            films_to_convert=total_films_to_convert + total_films_converting
         )
 
         # Return the StatisticsMessage
