@@ -5,7 +5,7 @@
     align-items: stretch;
     height: 100vh;
     padding: 0.25rem;
-    background-color: hsl(120, 25%, 98%);
+    background-color: hsl(219, 79%, 98%);
     border: 0.25rem solid white;
 }
 
@@ -29,7 +29,7 @@
     justify-content: flex-start;
     align-items: flex-start;
     height: 100%;
-    background-color: hsl(120, 25%, 94%);
+    background-color: hsl(219, 79%, 94%);
     overflow-y: scroll;
     margin: 0rem 0.25rem;
     padding: 0.25rem;
@@ -88,7 +88,7 @@
 }
 
 .conversion-button {
-    background-color: hsl(120, 25%, 80%);
+    background-color: hsl(219, 79%, 85%);
     border: 0rem;
     padding: 0.25rem 0.5rem;
     font-size: 1.1rem;
@@ -100,7 +100,7 @@
 }
 
 .active {
-    background-color: hsl(120, 25%, 94%);
+    background-color: hsl(219, 79%, 94%);
     color: hsl(210, 11%, 15%);
 }
 
@@ -109,7 +109,7 @@
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
-    background-color: hsl(120, 25%, 94%);
+    background-color: hsl(219, 79%, 94%);
     margin: 0.25rem;
     margin-bottom: 0.5rem;
     padding: 0.25rem;
