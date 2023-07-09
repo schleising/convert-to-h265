@@ -13,7 +13,7 @@ services:
       - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
-      - /volume2/Media:/Media:rw
+      - /Volumes/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
@@ -30,7 +30,7 @@ services:
       - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
-      - /volume2/Media:/Media:rw
+      - /Volumes/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
@@ -47,7 +47,7 @@ services:
       - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
-      - /volume2/Media:/Media:rw
+      - /Volumes/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
@@ -64,7 +64,7 @@ services:
       - DB_COLLECTION=media_collection
     volumes:
       - ./src_backend:/src:ro
-      - /volume2/Media:/Media:rw
+      - /Volumes/Media:/Media:rw
     restart: "no"
     extra_hosts:
         - "host.docker.internal:host-gateway"
