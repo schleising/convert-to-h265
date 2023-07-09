@@ -1,4 +1,4 @@
-version: "3.11"
+version: "3.2"
 
 services:
   backend-1:
@@ -8,7 +8,7 @@ services:
     environment:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=Mini-1
-      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
     volumes:
@@ -25,7 +25,7 @@ services:
     environment:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=Mini-2
-      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
     volumes:
@@ -35,20 +35,19 @@ services:
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
-  backend-3:
-    build: backend
-    container_name: Mini-3
-    hostname: Mini-3
-    environment:
-      - MAIN_BACKEND=FALSE
-      - BACKEND_NAME=Mini-3
-      - DB_URL=mongodb://SteveDS920:27018/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
-    restart: "no"
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
-
+  # backend-3:
+  #   build: backend
+  #   container_name: Mini-3
+  #   hostname: Mini-3
+  #   environment:
+  #     - MAIN_BACKEND=FALSE
+  #     - BACKEND_NAME=Mini-3
+  #     - DB_URL=mongodb://macmini2:27017/
+  #     - DB_NAME=media
+  #     - DB_COLLECTION=media_collection
+  #   volumes:
+  #     - ./src_backend:/src:ro
+  #     - /Volumes/Media:/Media:rw
+  #   restart: "no"
+  #   extra_hosts:
+  #       - "host.docker.internal:host-gateway"

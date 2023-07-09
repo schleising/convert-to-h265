@@ -15,7 +15,7 @@ def _close_mongo_connection() -> None:
     logging.info("Closed MongoDB connection")
 
 # Connect to MongoDB
-_client = AsyncIOMotorClient("mongodb://mongodb:27017/")
+_client = AsyncIOMotorClient("mongodb://macmini2:27017/")
 
 logging.info("Connected to MongoDB")
 

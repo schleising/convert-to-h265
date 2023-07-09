@@ -56,7 +56,7 @@ services:
     image: mongo:4.4.18
     hostname: mongodb
     ports:
-      - 27018:27017
+      - 27017:27017
     volumes:
       - db_volume:/data/db:rw
       - db_conf:/data/configdb:rw

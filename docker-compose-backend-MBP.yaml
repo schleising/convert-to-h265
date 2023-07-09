@@ -1,4 +1,4 @@
-version: "3.11"
+version: "3.2"
 
 services:
   backend-1:
@@ -9,7 +9,7 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-1
       - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
     volumes:
@@ -27,7 +27,7 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-2
       - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
     volumes:
@@ -45,7 +45,7 @@ services:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=MBP-3
       - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://SteveDS920:27018/
+      - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
     volumes:
