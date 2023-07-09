@@ -71,7 +71,7 @@ class Converter:
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
-                    self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
+                    self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
@@ -305,7 +305,7 @@ class Converter:
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
-                            self._notify.send(f"Backup Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
+                            self._notify.send(f"Backup Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {input_file_path} backed up successfully')
@@ -337,7 +337,7 @@ class Converter:
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
-                            self._notify.send(f"Restore Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
+                            self._notify.send(f"Restore Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
