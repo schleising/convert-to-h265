@@ -71,7 +71,7 @@ class Converter:
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
-                    self._notify.send(f"{Path(self._file_data.filename).name} Conversion Failed on {self._file_data.backend_name}")
+                    self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
@@ -274,7 +274,7 @@ class Converter:
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
-                    self._notify.send(f"Successfully converted {input_file_path.name} on {self._file_data.backend_name}")
+                    self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name}")
 
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
@@ -305,7 +305,7 @@ class Converter:
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
-                            self._notify.send(f"{Path(self._file_data.filename).name} Backup Failed on {self._file_data.backend_name}")
+                            self._notify.send(f"Backup Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {input_file_path} backed up successfully')
@@ -337,7 +337,7 @@ class Converter:
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
-                            self._notify.send(f"{Path(self._file_data.filename).name} Replace Failed on {self._file_data.backend_name}")
+                            self._notify.send(f"Restore Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name} Conversion Failed")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
