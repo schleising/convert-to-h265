@@ -72,6 +72,10 @@ services:
   frontend:
     build: frontend
     hostname: frontend
+    environment:
+      - DB_URL=mongodb://macmini2:27017/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     volumes:
       - ./src_frontend:/src:ro
     ports:
