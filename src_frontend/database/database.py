@@ -236,6 +236,11 @@ class Database:
             "filename": {"$regex": r"Films"}
         })
 
+        # Get the count of conversion errors
+        total_conversion_errors = await media_collection.count_documents({
+            "conversion_error": True
+        })
+
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
             total_files=total_files,
@@ -249,7 +254,8 @@ class Database:
             total_size_before_conversion_tb=round(total_size_before_conversion, 3),
             total_size_after_conversion_tb=round(total_size_after_conversion, 3),
             films_converted=total_films_converted,
-            films_to_convert=total_films_to_convert + total_films_converting
+            films_to_convert=total_films_to_convert + total_films_converting,
+            conversion_errors=total_conversion_errors
         )
 
         # Return the StatisticsMessage

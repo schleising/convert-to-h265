@@ -315,6 +315,9 @@ function openWebSocket() {
                             case 'films_to_convert':
                                 key = "Films to Convert: ";
                                 break;
+                            case 'conversion_errors':
+                                key = "Conversion Errors: ";
+                                break;
                             default:
                                 console.log("Unknown key: " + key);
                         }
