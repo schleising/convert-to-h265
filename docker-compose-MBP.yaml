@@ -42,6 +42,10 @@ services:
   frontend:
     build: frontend
     hostname: frontend
+    environment:
+      - DB_URL=mongodb://mongodb:27017/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
     depends_on:
       - mongodb
     volumes:
@@ -53,7 +57,7 @@ services:
         - "host.docker.internal:host-gateway"
 
   mongodb:
-    image: mongo:4.4.18
+    image: mongo
     hostname: mongodb
     ports:
       - 27017:27017

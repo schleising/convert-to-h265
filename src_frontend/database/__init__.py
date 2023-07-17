@@ -1,5 +1,6 @@
 import logging
 import atexit
+import os
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
@@ -14,8 +15,27 @@ def _close_mongo_connection() -> None:
     _client.close()
     logging.info("Closed MongoDB connection")
 
+# Get the database details from the environment variables
+try:
+    mongo_uri = os.environ["DB_URL"]
+except KeyError:
+    logging.error("DB_URL environment variable not set")
+    exit(1)
+
+try:
+    mongo_database = os.environ["DB_NAME"]
+except KeyError:
+    logging.error("DB_NAME environment variable not set")
+    exit(1)
+
+try:
+    mongo_collection = os.environ["DB_COLLECTION"]
+except KeyError:
+    logging.error("DB_COLLECTION environment variable not set")
+    exit(1)
+
 # Connect to MongoDB
-_client = AsyncIOMotorClient("mongodb://macmini2:27017/")
+_client = AsyncIOMotorClient(mongo_uri)
 
 logging.info("Connected to MongoDB")
 
@@ -23,10 +43,10 @@ logging.info("Connected to MongoDB")
 atexit.register(_close_mongo_connection)
 
 # Get the database
-_db: AIOMDB = _client["media"]
+_db: AIOMDB = _client[mongo_database]
 
 # Get the media collection
-media_collection: AIOMC = _db.get_collection("media_collection", codec_options=CodecOptions(tz_aware=True))
+media_collection: AIOMC = _db.get_collection(mongo_collection, codec_options=CodecOptions(tz_aware=True))
 
 # Create indexes
 media_collection.create_index("conversion_required")
