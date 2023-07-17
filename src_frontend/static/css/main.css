@@ -43,12 +43,21 @@
 }
 
 .data-header {
+    display: grid;
+    white-space: nowrap;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.5rem;
+    width: 100%;
     padding: 0.25rem;
 }
 
+.data-header-right {
+    text-align: right;
+}
+
 .details-container {
-    white-space: nowrap;
     display: grid;
+    white-space: nowrap;
     grid-template-columns: auto 1fr;
     column-gap: 0.5rem;
     width: 100%;

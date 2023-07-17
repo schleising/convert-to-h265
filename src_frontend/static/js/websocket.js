@@ -242,6 +242,9 @@ function openWebSocket() {
                     // Clear the converted-files element
                     document.getElementById("converted-files").innerText = "";
 
+                    // Add the number of files converted to the last-day-count element
+                    document.getElementById("last-day-count").innerText = filesConverted.converted_files.length;
+
                     // Loop through the filenames
                     for (i = 0; i < filesConverted.converted_files.length; i++) {
                         // Append a new key / value element to the converted-files element
