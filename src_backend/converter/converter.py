@@ -180,7 +180,7 @@ class Converter:
                 first_video_stream = 0
 
             # Log the bitrate of the file we are converting
-            logging.info(f"Converting {self._file_data.filename} with bitrate {self._file_data.video_information.streams[first_video_stream].bit_rate}")
+            logging.info(f"Converting {self._file_data.filename} with bitrate {self._file_data.video_information.format.bit_rate}")
 
             # Update the file_data object
             self._file_data.converting = True
