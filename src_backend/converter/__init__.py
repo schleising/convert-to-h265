@@ -47,6 +47,9 @@ atexit.register(_close_mongo_connection)
 # Are we only converting TV shows
 only_tv_shows = os.environ.get("ONLY_TV_SHOWS", "false").lower() == "true"
 
+# Are we only converting films
+only_films = os.environ.get("ONLY_FILMS", "false").lower() == "true"
+
 # Are we going for smallest file sizes first
 smallest_first = os.environ.get("SMALLEST_FIRST", "false").lower() == "true"
 

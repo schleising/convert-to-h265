@@ -59,6 +59,7 @@ services:
     environment:
       - MAIN_BACKEND=FALSE
       - BACKEND_NAME=Mini2-4
+      - ONLY_FILMS=TRUE
       - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
