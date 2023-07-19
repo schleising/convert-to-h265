@@ -309,7 +309,7 @@ class Converter:
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
-                    self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name}")
+                    self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
 
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
