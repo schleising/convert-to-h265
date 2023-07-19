@@ -172,10 +172,12 @@ class Database:
         # Convert the total conversion time to a string in the format "n days HH:MM:SS"
         total_conversion_time_string = str(total_conversion_time).split(".")[0]
 
-        # Get the total size of all of the video files before conversion by summing the pre_conversion_size field
+        # Get the total size of all of the video files requiring conversion before conversion by summing the pre_conversion_size field
         total_size_before_conversion_db = await media_collection.aggregate([
             {
-                "$match": {}
+                "$match": {
+                    'conversion_required': True
+                }
             },
             {
                 "$group": {
@@ -194,10 +196,12 @@ class Database:
             # If there are no files in the database, set the total number of terabytes to 0
             total_size_before_conversion = 0
 
-        # Get the total size of all of the video files after conversion by summing the current_size field
+        # Get the total size of all of the video files requiring conversion after conversion by summing the current_size field
         total_size_after_conversion_db = await media_collection.aggregate([
             {
-                "$match": {}
+                "$match": {
+                    "conversion_required": True
+                }
             },
             {
                 "$group": {
@@ -241,6 +245,31 @@ class Database:
             "conversion_error": True
         })
 
+        # Get the total number of files converted by each backed sorted by backend name
+        total_files_converted_by_backend_db = await media_collection.aggregate([
+            {
+                "$match": {
+                    "converted": True
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$backend_name",
+                    "total": {
+                        "$sum": 1
+                    }
+                }
+            },
+            {
+                "$sort": {
+                    "_id": 1
+                }
+            }
+        ]).to_list(length=None)
+
+        # Create a dictionary of backend names and the number of files converted by each backend
+        conversions_by_backend = {backend['_id']: backend['total'] for backend in total_files_converted_by_backend_db}
+
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
             total_files=total_files,
@@ -255,7 +284,8 @@ class Database:
             total_size_after_conversion_tb=round(total_size_after_conversion, 3),
             films_converted=total_films_converted,
             films_to_convert=total_films_to_convert + total_films_converting,
-            conversion_errors=total_conversion_errors
+            conversion_errors=total_conversion_errors,
+            conversions_by_backend=conversions_by_backend
         )
 
         # Return the StatisticsMessage

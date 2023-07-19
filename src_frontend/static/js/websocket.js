@@ -318,10 +318,19 @@ function openWebSocket() {
                             case 'conversion_errors':
                                 key = "Conversion Errors: ";
                                 break;
+                            case 'conversions_by_backend':
+                                // Ignore this key, we will loop through the values later
+                                continue;
                             default:
                                 console.log("Unknown key: " + key);
                         }
 
+                        // Create the statistics element
+                        appendKeyValueElement(document.getElementById("statistics"), key, value);
+                    }
+
+                    // Loop through the conversions by backend
+                    for ([key, value] of Object.entries(statistics.conversions_by_backend)) {
                         // Create the statistics element
                         appendKeyValueElement(document.getElementById("statistics"), key, value);
                     }

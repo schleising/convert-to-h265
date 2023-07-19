@@ -38,6 +38,7 @@ class StatisticsMessage(BaseModel):
     films_converted: int
     films_to_convert: int
     conversion_errors: int
+    conversions_by_backend: dict[str, int]
 
 class Message(BaseModel):
     messageType: MessageTypes
