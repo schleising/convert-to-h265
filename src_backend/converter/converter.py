@@ -73,8 +73,13 @@ class Converter:
                 if self._notify is not None:
                     self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
 
-            # Update the file in MongoDB
-            media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+            # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
+            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                "converting": False,
+                "start_conversion_time": None,
+                "percentage_complete": 0,
+                "conversion_error": self._file_data.conversion_error,
+            }})
 
             # Set the file_data object to None
             self._file_data = None
@@ -198,12 +203,6 @@ class Converter:
 
         if self._file_data is not None:
             # Log the bitrate of the file we are converting
-            if self._file_data.first_video_stream is not None:
-                first_video_stream = self._file_data.first_video_stream
-            else:
-                first_video_stream = 0
-
-            # Log the bitrate of the file we are converting
             logging.info(f"Converting {self._file_data.filename} with bitrate {self._file_data.video_information.format.bit_rate}")
 
             # Update the file_data object
@@ -212,7 +211,11 @@ class Converter:
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
 
             # Update the file in MongoDB
-            media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                "converting": self._file_data.converting,
+                "start_conversion_time": self._file_data.start_conversion_time,
+                "backend_name": self._file_data.backend_name,
+            }})
 
             # Turn the filename into a path
             input_file_path = Path(self._file_data.filename)
@@ -248,7 +251,9 @@ class Converter:
                     self._file_data.percentage_complete = percentage_complete
 
                     # Update the file in MongoDB
-                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                        "percentage_complete": self._file_data.percentage_complete,
+                    }})
 
             @self._ffmpeg.on('terminated')
             def _on_terminated() -> None:
@@ -293,7 +298,14 @@ class Converter:
                 self._file_data.current_size = self._output_file_path.stat().st_size
 
                 # Update the file in MongoDB
-                media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                    "converting": self._file_data.converting,
+                    "converted": self._file_data.converted,
+                    "conversion_error": self._file_data.conversion_error,
+                    "end_conversion_time": self._file_data.end_conversion_time,
+                    "percentage_complete": self._file_data.percentage_complete,
+                    "current_size": self._file_data.current_size,
+                }})
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
@@ -324,7 +336,9 @@ class Converter:
                         self._file_data.conversion_error = True
 
                         # Update the file in MongoDB
-                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                            "conversion_error": self._file_data.conversion_error,
+                        }})
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
@@ -356,7 +370,9 @@ class Converter:
                         self._file_data.conversion_error = True
 
                         # Update the file in MongoDB
-                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": self._file_data.dict()})
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                            "conversion_error": self._file_data.conversion_error,
+                        }})
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
