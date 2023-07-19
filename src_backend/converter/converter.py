@@ -239,21 +239,29 @@ class Converter:
                 )
             )
 
+            # Store the last update time
+            self.last_update_time = datetime.now()
+
             # Update the progress bar when ffmpeg emits a progress event
             @self._ffmpeg.on('progress')
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
                 if self._file_data is not None:
-                    # Calculate the percentage complete
-                    duration = timedelta(seconds=self._file_data.video_information.format.duration)
-                    percentage_complete = (ffmpeg_progress.time / duration) * 100
+                    # If progress has not been updated in the last second, update it
+                    if (datetime.now() - self.last_update_time).total_seconds() > 1:
+                        # Calculate the percentage complete
+                        duration = timedelta(seconds=self._file_data.video_information.format.duration)
+                        percentage_complete = (ffmpeg_progress.time / duration) * 100
 
-                    # Update the self._file_data object
-                    self._file_data.percentage_complete = percentage_complete
+                        # Update the self._file_data object
+                        self._file_data.percentage_complete = percentage_complete
 
-                    # Update the file in MongoDB
-                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                        "percentage_complete": self._file_data.percentage_complete,
-                    }})
+                        # Update the file in MongoDB
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                            "percentage_complete": self._file_data.percentage_complete,
+                        }})
+
+                        # Update the last update time
+                        self.last_update_time = datetime.now()
 
             @self._ffmpeg.on('terminated')
             def _on_terminated() -> None:
