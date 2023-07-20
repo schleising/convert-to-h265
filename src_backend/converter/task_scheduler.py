@@ -1,4 +1,4 @@
-from datetime import datetime, UTC, timedelta
+from datetime import datetime, timedelta, timezone
 from time import sleep
 import logging
 from zoneinfo import ZoneInfo
@@ -14,7 +14,7 @@ from . import config
 class TaskScheduler:
     def __init__(self) -> None:
         # Set the next walk time to now so that the folders are walked immediately on startup
-        self._next_walk_time = datetime.now().astimezone(UTC)
+        self._next_walk_time = datetime.now().astimezone(timezone.utc)
 
         # Get the scan time, start conversion time, and end conversion time from the config
         self._scan_time = config.config_data.schedule.scan_time
@@ -45,7 +45,7 @@ class TaskScheduler:
     def run(self) -> None:
         while True:
             # Get the current time in UTC
-            now = datetime.now().astimezone(UTC)
+            now = datetime.now().astimezone(timezone.utc)
 
             logging.debug(os.getenv("MAIN_BACKEND"))
 
@@ -58,7 +58,7 @@ class TaskScheduler:
 
                     # Set the next walk time to the next scan time
                     self._next_walk_time = (datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self._scan_time,
-                                                            tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(UTC)
+                                                            tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(timezone.utc)
                     logging.info(f"Next walk time: {self._next_walk_time}")
             else:
                 logging.debug("Not main backend, not walking folders")
@@ -68,14 +68,14 @@ class TaskScheduler:
                 now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
                 self._start_conversion_time,
                 tzinfo=ZoneInfo(config.config_data.schedule.timezone)
-            ).astimezone(UTC)
+            ).astimezone(timezone.utc)
 
             # Get the end conversion time in UTC
             end_conversion_datetime = datetime.combine(
                 now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
                 self._end_conversion_time,
                 tzinfo=ZoneInfo(config.config_data.schedule.timezone)
-            ).astimezone(UTC)
+            ).astimezone(timezone.utc)
 
             if start_conversion_datetime < now < end_conversion_datetime:
                 # If the current time is between the start conversion time and the end conversion time, start the conversion

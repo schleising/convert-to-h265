@@ -19,38 +19,38 @@ services:
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
-  backend-2:
-    build: backend
-    container_name: MBP-2
-    hostname: MBP-2
-    environment:
-      - MAIN_BACKEND=FALSE
-      - BACKEND_NAME=MBP-2
-      - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://macmini2:27017/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
-    restart: "no"
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
+  # backend-2:
+  #   build: backend
+  #   container_name: MBP-2
+  #   hostname: MBP-2
+  #   environment:
+  #     - MAIN_BACKEND=FALSE
+  #     - BACKEND_NAME=MBP-2
+  #     - ONLY_TV_SHOWS=true
+  #     - DB_URL=mongodb://macmini2:27017/
+  #     - DB_NAME=media
+  #     - DB_COLLECTION=media_collection
+  #   volumes:
+  #     - ./src_backend:/src:ro
+  #     - /Volumes/Media:/Media:rw
+  #   restart: "no"
+  #   extra_hosts:
+  #       - "host.docker.internal:host-gateway"
 
-  backend-3:
-    build: backend
-    container_name: MBP-3
-    hostname: MBP-3
-    environment:
-      - MAIN_BACKEND=FALSE
-      - BACKEND_NAME=MBP-3
-      - ONLY_TV_SHOWS=true
-      - DB_URL=mongodb://macmini2:27017/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
-    restart: "no"
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
+  # backend-3:
+  #   build: backend
+  #   container_name: MBP-3
+  #   hostname: MBP-3
+  #   environment:
+  #     - MAIN_BACKEND=FALSE
+  #     - BACKEND_NAME=MBP-3
+  #     - ONLY_TV_SHOWS=true
+  #     - DB_URL=mongodb://macmini2:27017/
+  #     - DB_NAME=media
+  #     - DB_COLLECTION=media_collection
+  #   volumes:
+  #     - ./src_backend:/src:ro
+  #     - /Volumes/Media:/Media:rw
+  #   restart: "no"
+  #   extra_hosts:
+  #       - "host.docker.internal:host-gateway"

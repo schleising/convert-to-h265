@@ -260,6 +260,9 @@ class Converter:
                             "percentage_complete": self._file_data.percentage_complete,
                         }})
 
+                        # Log the progress
+                        logging.debug(ffmpeg_progress)
+
                         # Update the last update time
                         self.last_update_time = datetime.now()
 

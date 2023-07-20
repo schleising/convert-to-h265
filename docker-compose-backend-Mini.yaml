@@ -18,22 +18,22 @@ services:
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
-  backend-2:
-    build: backend
-    container_name: Mini-2
-    hostname: Mini-2
-    environment:
-      - MAIN_BACKEND=FALSE
-      - BACKEND_NAME=Mini-2
-      - DB_URL=mongodb://macmini2:27017/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
-    restart: "no"
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
+  # backend-2:
+  #   build: backend
+  #   container_name: Mini-2
+  #   hostname: Mini-2
+  #   environment:
+  #     - MAIN_BACKEND=FALSE
+  #     - BACKEND_NAME=Mini-2
+  #     - DB_URL=mongodb://macmini2:27017/
+  #     - DB_NAME=media
+  #     - DB_COLLECTION=media_collection
+  #   volumes:
+  #     - ./src_backend:/src:ro
+  #     - /Volumes/Media:/Media:rw
+  #   restart: "no"
+  #   extra_hosts:
+  #       - "host.docker.internal:host-gateway"
 
   # backend-3:
   #   build: backend

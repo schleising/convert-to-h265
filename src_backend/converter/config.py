@@ -1,6 +1,5 @@
 from datetime import time
 from pathlib import Path
-import tomllib
 
 from pydantic import BaseModel
 
@@ -27,8 +26,22 @@ class Config:
     def read_config(self) -> None:
         # Load the config file
         with open("src/config.toml", "rb") as f:
-            # Use tomllib to parse the TOML file
-            data = tomllib.load(f)
-
             # Convert the data to a ConfigData object
-            self.config_data = ConfigData(**data)
+            self.config_data = ConfigData(
+                folders=Folders(
+                    include = [
+                        Path("/Media/TV"),
+                        Path("/Media/Films"),
+                    ],
+                    exclude = [
+                        Path("/Media/Films/VR")
+                    ],
+                    backup = Path("/Media/Backup")
+                ),
+                schedule=Schedule(
+                    timezone="Europe/London",
+                    scan_time=time(hour=0, minute=0),
+                    start_conversion_time=time(hour=0, minute=5),
+                    end_conversion_time=time(hour=23, minute=59)
+                )
+            )
