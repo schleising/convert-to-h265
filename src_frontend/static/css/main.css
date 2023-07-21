@@ -77,16 +77,19 @@
 
 .data-key {
     padding: 0rem 0.25rem;
+    user-select: none;
 }
 
 .data-value {
     padding: 0rem 0.25rem;
     text-align: right;
+    user-select: none;
 }
 
 .data-value-left {
     padding: 0rem 0.25rem;    
     text-align: left;
+    user-select: none;
 }
 
 #conversion-header {
