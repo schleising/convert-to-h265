@@ -58,29 +58,34 @@
     display: grid;
     white-space: nowrap;
     grid-template-columns: auto 1fr;
-    column-gap: 0.5rem;
     width: 100%;
     overflow-y: scroll;
-    padding: 0.25rem;
+    padding: 0.25rem 0rem;
 }
 
 .details-container-reversed {
     grid-template-columns: 1fr auto;
 }
 
-.key-value {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    width: 100%;
+.key-value-wrapper {
+    display: contents;
+}
+
+.key-value-wrapper:hover > * {
+    background-color: hsl(219, 79%, 85%);
+}
+
+.data-key {
+    padding: 0rem 0.25rem;
 }
 
 .data-value {
+    padding: 0rem 0.25rem;
     text-align: right;
 }
 
 .data-value-left {
+    padding: 0rem 0.25rem;    
     text-align: left;
 }
 
