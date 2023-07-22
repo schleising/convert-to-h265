@@ -208,7 +208,9 @@ function openWebSocket() {
                     appendKeyValueElement(progressElement, "Time Since Start:", conversionStatus.converting_files[conversionNumber].time_since_start, [], ["data-value-left"]);
                     appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.converting_files[conversionNumber].time_remaining, [], ["data-value-left"]);
                     appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
-                    appendKeyValueElement(progressElement, "Speed:", conversionStatus.converting_files[conversionNumber].speed + "x", [], ["data-value-left"]);
+                    if (conversionStatus.converting_files[conversionNumber].speed != null) {
+                        appendKeyValueElement(progressElement, "Speed:", conversionStatus.converting_files[conversionNumber].speed + "x", [], ["data-value-left"]);
+                    }
 
                     // Set the value of the file-progress element to the progress
                     document.getElementById("file-progress").value = conversionStatus.converting_files[conversionNumber].progress;
