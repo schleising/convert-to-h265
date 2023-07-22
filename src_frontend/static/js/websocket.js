@@ -209,7 +209,7 @@ function openWebSocket() {
                     appendKeyValueElement(progressElement, "Time Remaining:", conversionStatus.converting_files[conversionNumber].time_remaining, [], ["data-value-left"]);
                     appendKeyValueElement(progressElement, "Completion Time:", expected_completion_time, [], ["data-value-left"]);
                     if (conversionStatus.converting_files[conversionNumber].speed != null) {
-                        appendKeyValueElement(progressElement, "Speed:", conversionStatus.converting_files[conversionNumber].speed + "x", [], ["data-value-left"]);
+                        appendKeyValueElement(progressElement, "Speed:", conversionStatus.converting_files[conversionNumber].speed, [], ["data-value-left"]);
                     }
 
                     // Set the value of the file-progress element to the progress
