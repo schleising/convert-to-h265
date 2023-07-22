@@ -209,12 +209,14 @@ class Converter:
             self._file_data.converting = True
             self._file_data.start_conversion_time = datetime.now()
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
+            self._file_data.speed = 0
 
             # Update the file in MongoDB
             media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
                 "converting": self._file_data.converting,
                 "start_conversion_time": self._file_data.start_conversion_time,
                 "backend_name": self._file_data.backend_name,
+                "speed": 0,
             }})
 
             # Turn the filename into a path
@@ -258,6 +260,7 @@ class Converter:
                         # Update the file in MongoDB
                         media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
                             "percentage_complete": self._file_data.percentage_complete,
+                            "speed": ffmpeg_progress.speed,
                         }})
 
                         # Log the progress

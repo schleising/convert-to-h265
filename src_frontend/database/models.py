@@ -127,6 +127,7 @@ class FileData(BaseModel):
     pre_conversion_size: int
     current_size: int
     backend_name: str = "None"
+    speed: float | None = None
 
 class ConvertedFileDataFromDb(BaseModel):
     filename: str

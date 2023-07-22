@@ -91,7 +91,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                 progress=current_conversion_status_db.percentage_complete,
                                 time_since_start=time_since_start_str,
                                 time_remaining=time_remaining,
-                                backend_name=current_conversion_status_db.backend_name
+                                backend_name=current_conversion_status_db.backend_name,
+                                speed=current_conversion_status_db.speed
                             )
 
                             # Add the ConvertingFileMessage to the list
