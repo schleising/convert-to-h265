@@ -136,6 +136,12 @@ class CodecDetector:
                         backend_name="None"
                     )
 
+                    # Log whether the file needs to be converted
+                    if conversion_required:
+                        logging.info(f"{file}: CONVERT")
+                    else:
+                        logging.info(f"{file}: OK")
+
                     # Append the FileData object to the list of bulk write operations
                     bulk_write_operations.append(UpdateOne({"filename": file}, {"$set": file_data.dict()}, upsert=True))
                 else:
