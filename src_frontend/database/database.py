@@ -268,7 +268,19 @@ class Database:
         ]).to_list(length=None)
 
         # Create a dictionary of backend names and the number of files converted by each backend
-        conversions_by_backend = {backend['_id']: backend['total'] for backend in total_files_converted_by_backend_db}
+        conversions_by_backend = {}
+
+        # Iterate through the list of files converted by each backend
+        for backend in total_files_converted_by_backend_db:
+            # Get the backend name without the number at the end
+            backend_stem = backend["_id"].split('-')[0]
+
+            # If the backend name is not in the dictionary, add it
+            if backend_stem not in conversions_by_backend:
+                conversions_by_backend[backend_stem] = 0
+
+            # Add the number of files converted by the backend to the total for that backend
+            conversions_by_backend[backend_stem] += backend["total"]
 
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
