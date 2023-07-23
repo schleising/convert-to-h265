@@ -268,7 +268,7 @@ class Database:
         ]).to_list(length=None)
 
         # Create a dictionary of backend names and the number of files converted by each backend
-        conversions_by_backend = {}
+        conversions_by_backend: dict[str, int] = {}
 
         # Iterate through the list of files converted by each backend
         for backend in total_files_converted_by_backend_db:
@@ -281,6 +281,9 @@ class Database:
 
             # Add the number of files converted by the backend to the total for that backend
             conversions_by_backend[backend_stem] += backend["total"]
+
+        # Sort the dictionary by descending value
+        conversions_by_backend = dict(sorted(conversions_by_backend.items(), key=lambda item: item[1], reverse=True))
 
         # Create a StatisticsMessage from the database objects
         statistics_message = StatisticsMessage(
