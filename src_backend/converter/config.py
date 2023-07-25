@@ -41,7 +41,7 @@ class Config:
                 schedule=Schedule(
                     timezone="Europe/London",
                     scan_time=time(hour=0, minute=0),
-                    start_conversion_time=time(hour=0, minute=5),
+                    start_conversion_time=time(hour=0, minute=0),
                     end_conversion_time=time(hour=23, minute=59)
                 )
             )

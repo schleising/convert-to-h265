@@ -57,8 +57,7 @@ class TaskScheduler:
                     self._walk_folders()
 
                     # Set the next walk time to the next scan time
-                    self._next_walk_time = (datetime.combine(now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(), self._scan_time,
-                                                            tzinfo=ZoneInfo(config.config_data.schedule.timezone)) + timedelta(days=1)).astimezone(timezone.utc)
+                    self._next_walk_time = datetime.now().astimezone(timezone.utc) + timedelta(minutes=10)
                     logging.info(f"Next walk time: {self._next_walk_time}")
             else:
                 logging.debug("Not main backend, not walking folders")
