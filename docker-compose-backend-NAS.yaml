@@ -6,7 +6,7 @@ services:
     container_name: NAS-1
     hostname: NAS-1
     environment:
-      - MAIN_BACKEND=FALSE
+      - FOLDER_WALKER=TRUE
       - BACKEND_NAME=NAS-1
       - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media

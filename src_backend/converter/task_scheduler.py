@@ -47,51 +47,49 @@ class TaskScheduler:
             # Get the current time in UTC
             now = datetime.now().astimezone(timezone.utc)
 
-            logging.debug(os.getenv("MAIN_BACKEND"))
+            logging.debug(os.getenv("FOLDER_WALKER"))
 
             # Only walk the folders if this is the main backend
-            if os.getenv("MAIN_BACKEND") == "TRUE":
+            if os.getenv("FOLDER_WALKER") == "TRUE":
                 if now > self._next_walk_time:
                     # If the current time is after the next walk time, walk the folders
                     logging.info("Walk folders")
                     self._walk_folders()
 
                     # Set the next walk time to the next scan time
-                    self._next_walk_time = datetime.now().astimezone(timezone.utc) + timedelta(minutes=10)
+                    self._next_walk_time = datetime.now().astimezone(timezone.utc) + timedelta(minutes=1)
                     logging.info(f"Next walk time: {self._next_walk_time}")
             else:
-                logging.debug("Not main backend, not walking folders")
+                # Get the start conversion time in UTC
+                start_conversion_datetime = datetime.combine(
+                    now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
+                    self._start_conversion_time,
+                    tzinfo=ZoneInfo(config.config_data.schedule.timezone)
+                ).astimezone(timezone.utc)
 
-            # Get the start conversion time in UTC
-            start_conversion_datetime = datetime.combine(
-                now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
-                self._start_conversion_time,
-                tzinfo=ZoneInfo(config.config_data.schedule.timezone)
-            ).astimezone(timezone.utc)
+                # Get the end conversion time in UTC
+                end_conversion_datetime = datetime.combine(
+                    now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
+                    self._end_conversion_time,
+                    tzinfo=ZoneInfo(config.config_data.schedule.timezone)
+                ).astimezone(timezone.utc)
 
-            # Get the end conversion time in UTC
-            end_conversion_datetime = datetime.combine(
-                now.astimezone(ZoneInfo(config.config_data.schedule.timezone)).date(),
-                self._end_conversion_time,
-                tzinfo=ZoneInfo(config.config_data.schedule.timezone)
-            ).astimezone(timezone.utc)
+                if start_conversion_datetime < now < end_conversion_datetime:
+                    # If the current time is between the start conversion time and the end conversion time, start the conversion
+                    self._conversion_running = True
 
-            if start_conversion_datetime < now < end_conversion_datetime:
-                # If the current time is between the start conversion time and the end conversion time, start the conversion
-                self._conversion_running = True
+                    # Construct a Converter object
+                    converter = Converter()
 
-                # Construct a Converter object
-                converter = Converter()
+                    # Start the conversion
+                    converter.convert()
 
-                # Start the conversion
-                converter.convert()
-
-                # Reregister the signal handlers now that the conversion has finished
-                self._register_signal_handlers()
-            else:
-                logging.debug(f'Current time: {now}, start conversion time: {self._start_conversion_time}, end conversion time: {self._end_conversion_time}')
-                # If the current time is not between the start conversion time and the end conversion time, stop the conversion
-                self._conversion_running = False
+                    # Reregister the signal handlers now that the conversion has finished
+                    self._register_signal_handlers()
+                else:
+                    logging.debug(f'Current time: {now}, start conversion time: {self._start_conversion_time}, end conversion time: {self._end_conversion_time}')
+                    # If the current time is not between the start conversion time and the end conversion time, stop the conversion
+                    self._conversion_running = False
 
             # Sleep for 1 second
             sleep(1)

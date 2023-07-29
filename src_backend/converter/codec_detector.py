@@ -22,22 +22,19 @@ class CodecDetector:
             "-show_streams",
         ]
 
-        # Get the old data from MongoDB
+        # Get the old data from MongoDB getting just the filename
         logging.info("Getting old data from MongoDB")
-        data_from_db = media_collection.find({})
-
-        # Convert the old data to FileData objects
-        list_from_db = [FileData(**data) for data in data_from_db]
+        data_from_db = media_collection.find({}, {"filename": 1, "_id": 0})
 
         # Convert the list of FileData objects to a dictionary with the file path as the key
-        self._dict_from_db = {data.filename: data for data in list_from_db}
+        self._list_from_db = [data['filename'] for data in data_from_db]
 
         # Remove files that have been deleted
         self._remove_deleted_files()
 
     def _remove_deleted_files(self) -> None:
         # If files have been deleted, remove them from the database
-        deleted_files = set(self._dict_from_db.keys()) - set(self._files.keys())
+        deleted_files = set(self._list_from_db) - set(self._files.keys())
 
         if deleted_files:
             for file in deleted_files:
@@ -51,7 +48,7 @@ class CodecDetector:
         logging.info("Getting file encoding")
 
         for file, path in self._files.items():
-            if file not in self._dict_from_db:
+            if file not in self._list_from_db:
                 # File is not in the database, so we need to get the encoding
                 # First get the file size
                 file_size = path.stat().st_size
