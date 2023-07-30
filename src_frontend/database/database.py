@@ -30,7 +30,7 @@ class Database:
             "converted": True,
             "conversion_error": False,
             "end_conversion_time": {
-                "$gte": datetime.now() - timedelta(days=1)
+                "$gte": datetime.now() - timedelta(days=7)
             },
         }, sort=[("end_conversion_time", DESCENDING)], projection=["filename", "pre_conversion_size", "current_size"])
 
