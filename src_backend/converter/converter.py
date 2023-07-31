@@ -7,6 +7,7 @@ import shutil
 import os
 
 from pymongo import DESCENDING
+from pymongo.errors import ServerSelectionTimeoutError
 
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
@@ -73,13 +74,16 @@ class Converter:
                 if self._notify is not None:
                     self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
 
-            # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
-            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                "converting": False,
-                "start_conversion_time": None,
-                "percentage_complete": 0,
-                "conversion_error": self._file_data.conversion_error,
-            }})
+            try:
+                # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
+                media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                    "converting": False,
+                    "start_conversion_time": None,
+                    "percentage_complete": 0,
+                    "conversion_error": self._file_data.conversion_error,
+                }})
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
 
             # Set the file_data object to None
             self._file_data = None
@@ -109,12 +113,16 @@ class Converter:
     # that has not been converted yet and is not currently being converted
     def _get_highest_bit_rate(self) -> FileData | None:
         # Get the file with the highest bit rate that has not been converted yet and set converting to True in a single atomic operation
-        db_file = media_collection.find_one_and_update({
-            "conversion_required": True,
-            "converting": False,
-            "converted": False,
-            "conversion_error": False
-        }, {"$set": {"converting": True}}, sort=[("video_information.format.bit_rate", DESCENDING)])
+        try:
+            db_file = media_collection.find_one_and_update({
+                "conversion_required": True,
+                "converting": False,
+                "converted": False,
+                "conversion_error": False
+            }, {"$set": {"converting": True}}, sort=[("video_information.format.bit_rate", DESCENDING)])
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB.")
+            db_file = None
 
         # Check if there is a file that needs to be converted
         if db_file is not None:
@@ -140,13 +148,20 @@ class Converter:
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
 
-            # Update the file in MongoDB
-            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                "converting": self._file_data.converting,
-                "start_conversion_time": self._file_data.start_conversion_time,
-                "backend_name": self._file_data.backend_name,
-                "speed": 0,
-            }})
+            try:
+                # Update the file in MongoDB
+                media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                    "converting": self._file_data.converting,
+                    "start_conversion_time": self._file_data.start_conversion_time,
+                    "backend_name": self._file_data.backend_name,
+                    "speed": 0,
+                }})
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+                return
 
             # Turn the filename into a path
             input_file_path = Path(self._file_data.filename)
@@ -186,11 +201,15 @@ class Converter:
                         # Update the self._file_data object
                         self._file_data.percentage_complete = percentage_complete
 
-                        # Update the file in MongoDB
-                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                            "percentage_complete": self._file_data.percentage_complete,
-                            "speed": ffmpeg_progress.speed,
-                        }})
+                        try:
+                            # Update the file in MongoDB
+                            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                                "percentage_complete": self._file_data.percentage_complete,
+                                "speed": ffmpeg_progress.speed,
+                            }})
+                        except ServerSelectionTimeoutError:
+                            # Don't worry about it, we'll try again next time
+                            pass
 
                         # Log the progress
                         logging.debug(ffmpeg_progress)
@@ -241,14 +260,20 @@ class Converter:
                 self._file_data.current_size = self._output_file_path.stat().st_size
 
                 # Update the file in MongoDB
-                media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                    "converting": self._file_data.converting,
-                    "converted": self._file_data.converted,
-                    "conversion_error": self._file_data.conversion_error,
-                    "end_conversion_time": self._file_data.end_conversion_time,
-                    "percentage_complete": self._file_data.percentage_complete,
-                    "current_size": self._file_data.current_size,
-                }})
+                try:
+                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                        "converting": self._file_data.converting,
+                        "converted": self._file_data.converted,
+                        "conversion_error": self._file_data.conversion_error,
+                        "end_conversion_time": self._file_data.end_conversion_time,
+                        "percentage_complete": self._file_data.percentage_complete,
+                        "current_size": self._file_data.current_size,
+                    }})
+                except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB.")
+
+                    # Exit without swapping the converted file for the original
+                    return
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
@@ -278,10 +303,16 @@ class Converter:
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
 
-                        # Update the file in MongoDB
-                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                            "conversion_error": self._file_data.conversion_error,
-                        }})
+                        try:
+                            # Update the file in MongoDB
+                            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                                "conversion_error": self._file_data.conversion_error,
+                            }})
+                        except ServerSelectionTimeoutError:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
@@ -312,10 +343,16 @@ class Converter:
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
 
-                        # Update the file in MongoDB
-                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
-                            "conversion_error": self._file_data.conversion_error,
-                        }})
+                        try:
+                            # Update the file in MongoDB
+                            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                                "conversion_error": self._file_data.conversion_error,
+                            }})
+                        except ServerSelectionTimeoutError:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
 
                         # If notify.run is configured, send a notification
                         if self._notify is not None:
