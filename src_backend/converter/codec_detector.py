@@ -4,6 +4,7 @@ import logging
 from pydantic import ValidationError
 
 from pymongo import UpdateOne
+from pymongo.errors import ServerSelectionTimeoutError
 
 from .models import VideoInformation, FileData
 from . import media_collection
@@ -24,13 +25,25 @@ class CodecDetector:
 
         # Get the old data from MongoDB getting just the filename
         logging.info("Getting old data from MongoDB")
-        data_from_db = media_collection.find({}, {"filename": 1, "_id": 0})
+        try:
+            data_from_db = media_collection.find({}, {"filename": 1, "_id": 0})
 
-        # Convert the list of FileData objects to a dictionary with the file path as the key
-        self._list_from_db = [data['filename'] for data in data_from_db]
+            # Convert the list of FileData objects to a dictionary with the file path as the key
+            self._list_from_db: list[str] = [data['filename'] for data in data_from_db]
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB")
 
-        # Remove files that have been deleted
-        self._remove_deleted_files()
+            # Set the list from the database to an empty list
+            self._list_from_db = []
+
+            # Show that the connection was not successful
+            self.connection_successful = False
+        else:
+            # Show that the data was retrieved successfully
+            self.connection_successful = True
+
+            # Remove files that have been deleted
+            self._remove_deleted_files()
 
     def _remove_deleted_files(self) -> None:
         # If files have been deleted, remove them from the database
@@ -38,10 +51,18 @@ class CodecDetector:
 
         if deleted_files:
             for file in deleted_files:
-                media_collection.delete_one({"filename": file})
-                logging.info(f"Deleted {file} from database")
+                try:
+                    media_collection.delete_one({"filename": file})
+                except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB")
+                else:
+                    logging.info(f"Deleted {file} from database")
 
     def get_file_encoding(self) -> None:
+        # Only run if the connection to MongoDB was successful
+        if not self.connection_successful:
+            return
+
         # List of bulk write operations to run
         bulk_write_operations = []
 
@@ -151,7 +172,12 @@ class CodecDetector:
             logging.info("Writing to MongoDB")
 
             # Write the new data to MongoDB
-            media_collection.bulk_write(bulk_write_operations)
+            try:
+                media_collection.bulk_write(bulk_write_operations)
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB")
+            else:
+                logging.info("Finished writing to MongoDB")
         else:
             # There is no new data to write to MongoDB
             logging.info("No new data to write to MongoDB")

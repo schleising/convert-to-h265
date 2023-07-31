@@ -3,6 +3,7 @@ import atexit
 import os
 
 from pymongo import MongoClient, ASCENDING
+from pymongo.errors import ServerSelectionTimeoutError
 from bson.codec_options import CodecOptions
 
 from .config import Config
@@ -38,7 +39,7 @@ except KeyError:
     exit(1)
 
 # Connect to MongoDB
-_client = MongoClient(mongo_uri)
+_client = MongoClient(f'{mongo_uri}?timeoutMS=5000')
 logging.info("Connected to MongoDB")
 
 # Register the close_mongo_connection function to run at exit
@@ -49,7 +50,11 @@ _db = _client[mongo_database]
 
 # Get the media collection
 media_collection = _db.get_collection(mongo_collection, codec_options=CodecOptions(tz_aware=True))
-media_collection.create_index([("filename", ASCENDING)], unique=True)
+
+try:
+    media_collection.create_index([("filename", ASCENDING)], unique=True)
+except ServerSelectionTimeoutError:
+    logging.error("Could not create index on filename")
 
 # Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler
