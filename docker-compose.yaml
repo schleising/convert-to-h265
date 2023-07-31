@@ -14,7 +14,7 @@ services:
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
-    restart: "no"
+    restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
 
@@ -29,6 +29,6 @@ services:
       - ./src_frontend:/src:ro
     ports:
       - 8020:8020
-    restart: "no"
+    restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
