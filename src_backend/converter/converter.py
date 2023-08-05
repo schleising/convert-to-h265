@@ -7,7 +7,7 @@ import shutil
 import os
 
 from pymongo import DESCENDING
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout
 
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
@@ -84,6 +84,8 @@ class Converter:
                 }})
             except ServerSelectionTimeoutError:
                 logging.error("Could not connect to MongoDB.")
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
 
             # Set the file_data object to None
             self._file_data = None
@@ -123,6 +125,9 @@ class Converter:
         except ServerSelectionTimeoutError:
             logging.error("Could not connect to MongoDB.")
             db_file = None
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB.")
+            db_file = None
 
         # Check if there is a file that needs to be converted
         if db_file is not None:
@@ -157,6 +162,12 @@ class Converter:
                     "speed": 0,
                 }})
             except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+                return
+            except NetworkTimeout:
                 logging.error("Could not connect to MongoDB.")
 
                 # Set the output file path to None and return without converting
@@ -208,6 +219,9 @@ class Converter:
                                 "speed": ffmpeg_progress.speed,
                             }})
                         except ServerSelectionTimeoutError:
+                            # Don't worry about it, we'll try again next time
+                            pass
+                        except NetworkTimeout:
                             # Don't worry about it, we'll try again next time
                             pass
 
@@ -274,6 +288,11 @@ class Converter:
 
                     # Exit without swapping the converted file for the original
                     return
+                except NetworkTimeout:
+                    logging.error("Could not connect to MongoDB.")
+
+                    # Exit without swapping the converted file for the original
+                    return
 
                 # If notify.run is configured, send a notification
                 if self._notify is not None:
@@ -309,6 +328,11 @@ class Converter:
                                 "conversion_error": self._file_data.conversion_error,
                             }})
                         except ServerSelectionTimeoutError:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
+                        except NetworkTimeout:
                             logging.error("Could not connect to MongoDB.")
 
                             # Exit without swapping the converted file for the original
@@ -349,6 +373,11 @@ class Converter:
                                 "conversion_error": self._file_data.conversion_error,
                             }})
                         except ServerSelectionTimeoutError:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
+                        except NetworkTimeout:
                             logging.error("Could not connect to MongoDB.")
 
                             # Exit without swapping the converted file for the original

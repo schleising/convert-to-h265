@@ -4,7 +4,7 @@ import logging
 from pydantic import ValidationError
 
 from pymongo import UpdateOne
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout
 
 from .models import VideoInformation, FileData
 from . import media_collection
@@ -38,6 +38,14 @@ class CodecDetector:
 
             # Show that the connection was not successful
             self.connection_successful = False
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB")
+
+            # Set the list from the database to an empty list
+            self._list_from_db = []
+
+            # Show that the connection was not successful
+            self.connection_successful = False
         else:
             # Show that the data was retrieved successfully
             self.connection_successful = True
@@ -54,6 +62,8 @@ class CodecDetector:
                 try:
                     media_collection.delete_one({"filename": file})
                 except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB")
+                except NetworkTimeout:
                     logging.error("Could not connect to MongoDB")
                 else:
                     logging.info(f"Deleted {file} from database")
@@ -175,6 +185,8 @@ class CodecDetector:
             try:
                 media_collection.bulk_write(bulk_write_operations)
             except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB")
+            except NetworkTimeout:
                 logging.error("Could not connect to MongoDB")
             else:
                 logging.info("Finished writing to MongoDB")

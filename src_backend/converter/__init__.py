@@ -3,7 +3,7 @@ import atexit
 import os
 
 from pymongo import MongoClient, ASCENDING
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout
 from bson.codec_options import CodecOptions
 
 from .config import Config
@@ -54,6 +54,8 @@ media_collection = _db.get_collection(mongo_collection, codec_options=CodecOptio
 try:
     media_collection.create_index([("filename", ASCENDING)], unique=True)
 except ServerSelectionTimeoutError:
+    logging.error("Could not create index on filename")
+except NetworkTimeout:
     logging.error("Could not create index on filename")
 
 # Import TaskScheduler to make it available directly from the converter package
