@@ -3,7 +3,7 @@ import atexit
 import os
 
 from pymongo import MongoClient, ASCENDING
-from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout
+from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout, AutoReconnect
 from bson.codec_options import CodecOptions
 
 from .config import Config
@@ -56,6 +56,8 @@ try:
 except ServerSelectionTimeoutError:
     logging.error("Could not create index on filename")
 except NetworkTimeout:
+    logging.error("Could not create index on filename")
+except AutoReconnect:
     logging.error("Could not create index on filename")
 
 # Import TaskScheduler to make it available directly from the converter package
