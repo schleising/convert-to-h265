@@ -2,13 +2,11 @@ import logging
 import atexit
 import os
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from pymongo import MongoClient
 
 from bson.codec_options import CodecOptions
-
-# Type aliases to avoid Pylance errors
-AIOMDB = AsyncIOMotorDatabase
-AIOMC = AsyncIOMotorCollection
 
 def _close_mongo_connection() -> None:
     # This function will be registered with atexit to close the MongoDB connection when the program exits
@@ -43,17 +41,23 @@ logging.info("Connected to MongoDB")
 atexit.register(_close_mongo_connection)
 
 # Get the database
-_db: AIOMDB = _client[mongo_database]
+_db = _client[mongo_database]
 
 # Get the media collection
-media_collection: AIOMC = _db.get_collection(mongo_collection, codec_options=CodecOptions(tz_aware=True))
+media_collection = _db.get_collection(mongo_collection, codec_options=CodecOptions(tz_aware=True))
+
+# Create a pymongo MongoClient for the media collection to use for creating indexes non-async
+_pymongo_client = MongoClient(mongo_uri)
+
+# Get the media collection
+_pymongo_media_collection = _pymongo_client[mongo_database][mongo_collection]
 
 # Create indexes
-media_collection.create_index("conversion_required")
-media_collection.create_index("converting")
-media_collection.create_index("converted")
-media_collection.create_index("conversion_error")
-media_collection.create_index("start_conversion_time")
-media_collection.create_index("end_conversion_time")
-media_collection.create_index("pre_conversion_size")
-media_collection.create_index("current_size")
+_pymongo_media_collection.create_index("conversion_required")
+_pymongo_media_collection.create_index("converting")
+_pymongo_media_collection.create_index("converted")
+_pymongo_media_collection.create_index("conversion_error")
+_pymongo_media_collection.create_index("start_conversion_time")
+_pymongo_media_collection.create_index("end_conversion_time")
+_pymongo_media_collection.create_index("pre_conversion_size")
+_pymongo_media_collection.create_index("current_size")

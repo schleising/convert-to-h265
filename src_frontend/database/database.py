@@ -34,24 +34,23 @@ class Database:
             },
         }, sort=[("end_conversion_time", DESCENDING)], projection=["filename", "pre_conversion_size", "current_size"])
 
-        # Convert the cursor to a list
-        db_file_list = await db_file_cursor.to_list(length=None)
-
         # Convert the list of FileData objects to a list of file paths
-        file_list = [self._create_converted_data(ConvertedFileDataFromDb(**data)) for data in db_file_list]
+        file_list = [self._create_converted_data(ConvertedFileDataFromDb(**data)) async for data in db_file_cursor]
 
         return file_list
     
     async def get_converting_files(self) -> list[FileData] | None:
-        # Get the files that are being converted from MongoDB
+        # Get the files where converting or copying is True from MongoDB
         db_file = media_collection.find({
-            "converting": True
+            "$or": [
+                {"converting": True},
+                {"copying": True}
+            ]
         })
 
         # Convert the list of FileData objects to a list of file paths
         if db_file is not None:
-            db_file_list = await db_file.to_list(length=None)
-            file_data_list = [FileData(**data) for data in db_file_list]
+            file_data_list = [FileData(**data) async for data in db_file]
 
             return sorted(file_data_list, key=lambda file_data: file_data.backend_name)
 
@@ -246,7 +245,7 @@ class Database:
         })
 
         # Get the total number of files converted by each backed sorted by backend name
-        total_files_converted_by_backend_db = await media_collection.aggregate([
+        total_files_converted_by_backend_db = media_collection.aggregate([
             {
                 "$match": {
                     "converted": True
@@ -265,13 +264,13 @@ class Database:
                     "_id": 1
                 }
             }
-        ]).to_list(length=None)
+        ])
 
         # Create a dictionary of backend names and the number of files converted by each backend
         conversions_by_backend: dict[str, int] = {}
 
         # Iterate through the list of files converted by each backend
-        for backend in total_files_converted_by_backend_db:
+        async for backend in total_files_converted_by_backend_db:
             # Get the backend name without the number at the end
             backend_stem = backend["_id"].split('-')[0]
 

@@ -64,6 +64,7 @@ class Converter:
 
             # Update the file_data object
             self._file_data.converting = False
+            self._file_data.copying = False
             self._file_data.start_conversion_time = None
             self._file_data.percentage_complete = 0
 
@@ -78,6 +79,7 @@ class Converter:
                 # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
                 media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
                     "converting": False,
+                    "copying": False,
                     "start_conversion_time": None,
                     "percentage_complete": 0,
                     "conversion_error": self._file_data.conversion_error,
@@ -122,7 +124,8 @@ class Converter:
                 "conversion_required": True,
                 "converting": False,
                 "converted": False,
-                "conversion_error": False
+                "conversion_error": False,
+                "copying": False,
             }, {"$set": {"converting": True}}, sort=[("video_information.format.bit_rate", DESCENDING)])
         except ServerSelectionTimeoutError:
             logging.error("Could not connect to MongoDB.")
@@ -283,6 +286,7 @@ class Converter:
                 self._file_data.converting = False
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
+                self._file_data.copying = True
                 self._file_data.end_conversion_time = datetime.now()
                 self._file_data.percentage_complete = 100
                 self._file_data.current_size = self._output_file_path.stat().st_size
@@ -293,6 +297,7 @@ class Converter:
                         "converting": self._file_data.converting,
                         "converted": self._file_data.converted,
                         "conversion_error": self._file_data.conversion_error,
+                        "copying": self._file_data.copying,
                         "end_conversion_time": self._file_data.end_conversion_time,
                         "percentage_complete": self._file_data.percentage_complete,
                         "current_size": self._file_data.current_size,
@@ -312,10 +317,6 @@ class Converter:
 
                     # Exit without swapping the converted file for the original
                     return
-
-                # If notify.run is configured, send a notification
-                if self._notify is not None:
-                    self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
 
                 # Create a path for the backup file
                 backup_path = Path(config.config_data.folders.backup, input_file_path.name)
@@ -340,11 +341,13 @@ class Converter:
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
+                        self._file_data.copying = False
 
                         try:
                             # Update the file in MongoDB
                             media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
                                 "conversion_error": self._file_data.conversion_error,
+                                "copying": self._file_data.copying,
                             }})
                         except ServerSelectionTimeoutError:
                             logging.error("Could not connect to MongoDB.")
@@ -390,11 +393,13 @@ class Converter:
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
+                        self._file_data.copying = False
 
                         try:
                             # Update the file in MongoDB
                             media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
                                 "conversion_error": self._file_data.conversion_error,
+                                "copying": self._file_data.copying,
                             }})
                         except ServerSelectionTimeoutError:
                             logging.error("Could not connect to MongoDB.")
@@ -418,6 +423,62 @@ class Converter:
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
+
+                        # Update the file_data object
+                        self._file_data.copying = False
+
+                        # Update the file in MongoDB
+                        try:
+                            media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                                "copying": self._file_data.copying,
+                            }})
+                        except ServerSelectionTimeoutError:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
+                        except NetworkTimeout:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
+                        except AutoReconnect:
+                            logging.error("Could not connect to MongoDB.")
+
+                            # Exit without swapping the converted file for the original
+                            return
+
+                        # If notify.run is configured, send a notification
+                        if self._notify is not None:
+                            self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                 else:
                     # Log that the copy and replace was successful
                     logging.info(f'File {input_file_path} replaced successfully with {self._output_file_path}')
+
+                    # Update the file_data object
+                    self._file_data.copying = False
+
+                    # Update the file in MongoDB
+                    try:
+                        media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                            "copying": self._file_data.copying,
+                        }})
+                    except ServerSelectionTimeoutError:
+                        logging.error("Could not connect to MongoDB.")
+
+                        # Exit without swapping the converted file for the original
+                        return
+                    except NetworkTimeout:
+                        logging.error("Could not connect to MongoDB.")
+
+                        # Exit without swapping the converted file for the original
+                        return
+                    except AutoReconnect:
+                        logging.error("Could not connect to MongoDB.")
+
+                        # Exit without swapping the converted file for the original
+                        return
+
+                    # If notify.run is configured, send a notification
+                    if self._notify is not None:
+                        self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")

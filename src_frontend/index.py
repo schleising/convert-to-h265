@@ -92,7 +92,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                 time_since_start=time_since_start_str,
                                 time_remaining=time_remaining,
                                 backend_name=current_conversion_status_db.backend_name,
-                                speed=current_conversion_status_db.speed
+                                speed=current_conversion_status_db.speed,
+                                copying=current_conversion_status_db.copying
                             )
 
                             # Add the ConvertingFileMessage to the list
@@ -113,13 +114,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         logging.debug(f'Current conversion status: {message}')
 
                         # Send the conversion status
-                        await websocket.send_json(message.dict())
+                        await websocket.send_json(message.model_dump())
                     else:
                         # Send the conversion status as None
                         await websocket.send_json(Message(
                             messageType=MessageTypes.CONVERTING_FILES,
                             messageBody=None
-                        ).dict())
+                        ).model_dump())
 
                     # Get the files converted
                     converted_files = await database.get_converted_files()
@@ -141,7 +142,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         logging.debug(f'Files converted: {message}')
 
                         # Send the files converted
-                        await websocket.send_json(message.dict())
+                        await websocket.send_json(message.model_dump())
 
                         # Set the last converted files message
                         last_converted_files_message = files_converted_message
@@ -161,7 +162,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         logging.debug(f'Statistics: {message}')
 
                         # Send the statistics
-                        await websocket.send_json(message.dict())
+                        await websocket.send_json(message.model_dump())
 
                         # Set the last statistics message
                         last_statistics_message = statistics

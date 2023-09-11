@@ -181,7 +181,7 @@ class CodecDetector:
                         logging.info(f"{file}: OK")
 
                     # Append the FileData object to the list of bulk write operations
-                    bulk_write_operations.append(UpdateOne({"filename": file}, {"$set": file_data.dict()}, upsert=True))
+                    bulk_write_operations.append(UpdateOne({"filename": file}, {"$set": file_data.model_dump()}, upsert=True))
                 else:
                     # ffprobe failed
                     logging.error(f"ffprobe failed for {file}")

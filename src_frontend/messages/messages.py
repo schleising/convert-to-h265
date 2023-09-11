@@ -14,6 +14,7 @@ class ConvertingFileData(BaseModel):
     time_remaining: str
     backend_name: str
     speed: float | None = None
+    copying: bool | None = None
 
 class ConvertingFilesMessage(BaseModel):
     converting_files: list[ConvertingFileData]
