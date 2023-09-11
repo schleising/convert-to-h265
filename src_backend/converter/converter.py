@@ -125,7 +125,6 @@ class Converter:
                 "converting": False,
                 "converted": False,
                 "conversion_error": False,
-                "copying": False,
             }, {"$set": {"converting": True}}, sort=[("video_information.format.bit_rate", DESCENDING)])
         except ServerSelectionTimeoutError:
             logging.error("Could not connect to MongoDB.")
