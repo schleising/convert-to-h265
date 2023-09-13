@@ -151,6 +151,33 @@ class Converter:
         self._file_data = self._get_highest_bit_rate()
 
         if self._file_data is not None:
+            # Turn the filename into a path
+            input_file_path = Path(self._file_data.filename)
+
+            # Check if the file exists
+            if not input_file_path.exists():
+                # Log that the file does not exist
+                logging.error(f"{input_file_path} does not exist, you probably need to mount the folder containing it.")
+
+                # Indicate in the db that this file is not converting anymore
+                self._file_data.converting = False
+
+                try:
+                    # Update the file in MongoDB
+                    media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                        "converting": self._file_data.converting,
+                    }})
+                except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB.")
+                except NetworkTimeout:
+                    logging.error("Could not connect to MongoDB.")
+                except AutoReconnect:
+                    logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+                return
+
             # Log the bitrate of the file we are converting
             logging.info(f"Converting {self._file_data.filename} with bitrate {self._file_data.video_information.format.bit_rate}")
 
@@ -186,9 +213,6 @@ class Converter:
                 # Set the output file path to None and return without converting
                 self._file_data = None
                 return
-
-            # Turn the filename into a path
-            input_file_path = Path(self._file_data.filename)
 
             # Create the output file path
             self._output_file_path = (config.config_data.folders.backup / input_file_path.name).with_suffix(".hevc.mkv")
