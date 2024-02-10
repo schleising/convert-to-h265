@@ -1,5 +1,5 @@
 # Start with the Python Alpine image as the build image
-FROM python:3.11-alpine
+FROM python:3-alpine
 
 # Update packages if necessary
 RUN apk update
