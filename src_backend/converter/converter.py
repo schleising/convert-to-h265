@@ -349,7 +349,7 @@ class Converter:
                     logging.info(f'Hardlinking {input_file_path} to backup folder')
 
                     # Hardlink the input file to the backup folder
-                    input_file_path.link_to(backup_path)
+                    backup_path.hardlink_to(input_file_path)
                 except OSError as e:
                     # There was an error creating the hard link, try copying the file instead
                     try:
