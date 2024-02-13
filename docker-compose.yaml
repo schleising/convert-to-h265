@@ -17,18 +17,3 @@ services:
     restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
-
-  frontend:
-    build: frontend
-    hostname: frontend
-    environment:
-      - DB_URL=mongodb://macmini2:27017/
-      - DB_NAME=media
-      - DB_COLLECTION=media_collection
-    volumes:
-      - ./src_frontend:/src:ro
-    ports:
-      - 8020:8020
-    restart: unless-stopped
-    extra_hosts:
-        - "host.docker.internal:host-gateway"
