@@ -489,6 +489,7 @@ class Converter:
 
     # Send a push notification for the file conversion status
     def send_notification(self, title: str, message: str) -> None:
+        logging.info(f'Sending notification: {title} - {message}')
         # Get the subscriptions from the database
         if push_collection is not None:
             subscriptions = push_collection.find()
