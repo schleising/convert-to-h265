@@ -11,7 +11,7 @@ services:
       - DB_URL=mongodb://macmini2:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
-      - PUSH_COLLECTION=push_collection
+      - PUSH_COLLECTION=push_subscriptions
     volumes:
       - ./src_backend:/src:ro
       - /Volumes/Media:/Media:rw
