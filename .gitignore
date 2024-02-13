@@ -161,4 +161,4 @@ cython_debug/
 #.idea/
 test.py
 .DS_Store
-src_backend/notify-run-channel.txt
+src_backend/secrets/

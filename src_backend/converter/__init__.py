@@ -38,6 +38,12 @@ except KeyError:
     logging.error("DB_COLLECTION environment variable not set")
     exit(1)
 
+try:
+    _push_collection_name = os.environ["PUSH_COLLECTION"]
+except KeyError:
+    logging.error("PUSH_COLLECTION environment variable not set")
+    exit(1)
+
 # Connect to MongoDB
 _client = MongoClient(f'{mongo_uri}?timeoutMS=5000')
 logging.info("Connected to MongoDB")
@@ -51,6 +57,9 @@ _db = _client[mongo_database]
 # Get the media collection
 media_collection = _db.get_collection(mongo_collection, codec_options=CodecOptions(tz_aware=True))
 
+# Get the push collection
+push_collection = _db.get_collection(_push_collection_name)
+
 try:
     media_collection.create_index([("filename", ASCENDING)], unique=True)
 except ServerSelectionTimeoutError:
@@ -59,6 +68,15 @@ except NetworkTimeout:
     logging.error("Could not create index on filename")
 except AutoReconnect:
     logging.error("Could not create index on filename")
+
+try:
+    push_collection.create_index([("endpoint", ASCENDING)], unique=True)
+except ServerSelectionTimeoutError:
+    logging.error("Could not create index on endpoint")
+except NetworkTimeout:
+    logging.error("Could not create index on endpoint")
+except AutoReconnect:
+    logging.error("Could not create index on endpoint")
 
 # Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler

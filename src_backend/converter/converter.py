@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from pathlib import Path
 import logging
 import signal
@@ -12,10 +13,10 @@ from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout, AutoReco
 from ffmpeg import FFmpeg, FFmpegError
 from ffmpeg import Progress as FFmpegProgress
 
-from notify_run import Notify
+from pywebpush import webpush, WebPushException
 
 from .models import FileData
-from . import media_collection, config
+from . import media_collection, push_collection, config
 
 class Converter:
     def __init__(self):
@@ -31,21 +32,6 @@ class Converter:
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
-
-        # Read the notify.run endpoint from the notify-run-channel.txt file
-        try:
-            with open("/src/notify-run-channel.txt", "r") as f:
-                endpoint = f.read().strip()
-        except FileNotFoundError:
-            # Log that notify-run-channel.txt was not found
-            logging.warning("notify-run-channel.txt was not found. Notify.run will not be used.")
-            endpoint = None
-
-        # If the endpoint is set, register notify.run
-        if endpoint is not None:
-            self._notify = Notify(endpoint=endpoint)
-        else:
-            self._notify = None
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -71,9 +57,8 @@ class Converter:
             if conversion_failed:
                 self._file_data.conversion_error = True
 
-                # If notify.run is configured, send a notification
-                if self._notify is not None:
-                    self._notify.send(f"Conversion Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                # Send a notification
+                self.send_notification("Conversion Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
 
             try:
                 # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
@@ -388,9 +373,8 @@ class Converter:
                             # Exit without swapping the converted file for the original
                             return
 
-                        # If notify.run is configured, send a notification
-                        if self._notify is not None:
-                            self._notify.send(f"Backup Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                        # Send a notification
+                        self.send_notification("Backup Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {input_file_path} backed up successfully')
@@ -440,9 +424,8 @@ class Converter:
                             # Exit without swapping the converted file for the original
                             return
 
-                        # If notify.run is configured, send a notification
-                        if self._notify is not None:
-                            self._notify.send(f"Restore Failed\n{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                        # Send a notification
+                        self.send_notification("Restore Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
@@ -471,9 +454,8 @@ class Converter:
                             # Exit without swapping the converted file for the original
                             return
 
-                        # If notify.run is configured, send a notification
-                        if self._notify is not None:
-                            self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+                        # Send a notification
+                        self.send_notification("Conversion Success", f"{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                 else:
                     # Log that the copy and replace was successful
                     logging.info(f'File {input_file_path} replaced successfully with {self._output_file_path}')
@@ -502,6 +484,38 @@ class Converter:
                         # Exit without swapping the converted file for the original
                         return
 
-                    # If notify.run is configured, send a notification
-                    if self._notify is not None:
-                        self._notify.send(f"Conversion Success\n{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+                    # Send a notification
+                    self.send_notification("Conversion Success", f"{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+
+    # Send a push notification for the file conversion status
+    def send_notification(self, title: str, message: str) -> None:
+        # Get the subscriptions from the database
+        if push_collection is not None:
+            subscriptions = push_collection.find()
+
+            # Load the claims
+            with open('src/secrets/claims.json', 'r') as file:
+                claims = json.load(file)
+
+            # Send the push notifications
+            for subscription in subscriptions:
+                logging.debug(f'Sending notification to {subscription}')
+
+                try:
+                    webpush(
+                        subscription_info=subscription,
+                        data=json.dumps({
+                            'title': title,
+                            'body': message
+                        }),
+                        vapid_private_key='/src/secrets/private_key.pem',
+                        vapid_claims=claims
+                    )
+                except WebPushException as ex:
+                    logging.error(f'Error sending notification: {ex}')
+
+                    if ex.response and ex.response.json():
+                        extra = ex.response.json()
+                        logging.error(f'Remote service replied with a {extra.code}:{extra.errno}, {extra.message}')
+                else:
+                    logging.debug('Notification sent successfully')
