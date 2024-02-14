@@ -507,7 +507,8 @@ class Converter:
                         subscription_info=subscription,
                         data=json.dumps({
                             'title': title,
-                            'body': message
+                            'body': message,
+                            'icon': '/icons/tools/converter/android-chrome-192x192.png',
                         }),
                         vapid_private_key='/src/secrets/private_key.pem',
                         vapid_claims=claims
