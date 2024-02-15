@@ -16,7 +16,7 @@ from ffmpeg import Progress as FFmpegProgress
 from pywebpush import webpush, WebPushException
 
 from .models import FileData
-from . import media_collection, push_collection, config
+from . import media_collection, push_collection, config, NOTIFICATION_TTL
 
 class Converter:
     def __init__(self):
@@ -511,6 +511,8 @@ class Converter:
                             'icon': '/icons/tools/converter/android-chrome-192x192.png',
                             'badge': '/icons/tools/converter/badge-192x192.png',
                         }),
+                        headers={"Urgency": "normal"},
+                        ttl=NOTIFICATION_TTL,
                         vapid_private_key='/src/secrets/private_key.pem',
                         vapid_claims=claims
                     )

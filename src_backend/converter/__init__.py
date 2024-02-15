@@ -19,6 +19,9 @@ config = Config()
 # Set logging level and format
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# Set the notification TTL to 1 day
+NOTIFICATION_TTL = 60 * 60 * 24
+
 # Get the database details from the environment variables
 try:
     mongo_uri = os.environ["DB_URL"]
