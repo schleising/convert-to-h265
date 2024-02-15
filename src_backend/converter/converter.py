@@ -509,6 +509,7 @@ class Converter:
                             'title': title,
                             'body': message,
                             'icon': '/icons/tools/converter/android-chrome-192x192.png',
+                            'badge': '/icons/tools/converter/badge-192x192.png',
                         }),
                         vapid_private_key='/src/secrets/private_key.pem',
                         vapid_claims=claims
