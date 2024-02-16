@@ -510,6 +510,8 @@ class Converter:
                             'body': message,
                             'icon': '/icons/tools/converter/android-chrome-192x192.png',
                             'badge': '/icons/tools/converter/badge-192x192.png',
+                            "url": '/tools/converter/',
+                            "requireInteraction": True,
                         }),
                         headers={"Urgency": "normal"},
                         ttl=NOTIFICATION_TTL,
