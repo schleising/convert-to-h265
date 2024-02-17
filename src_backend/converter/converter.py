@@ -58,7 +58,7 @@ class Converter:
                 self._file_data.conversion_error = True
 
                 # Send a notification
-                self.send_notification("Conversion Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                self.send_notification("Conversion Failed", f"{Path(self._file_data.filename).name}")
 
             try:
                 # Update fields converting, start_conversion_time and percentage_complete the in MongoDB
@@ -374,7 +374,7 @@ class Converter:
                             return
 
                         # Send a notification
-                        self.send_notification("Backup Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                        self.send_notification("Backup Failed", f"{Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {input_file_path} backed up successfully')
@@ -425,7 +425,7 @@ class Converter:
                             return
 
                         # Send a notification
-                        self.send_notification("Restore Failed", f"{self._file_data.backend_name}: {Path(self._file_data.filename).name}")
+                        self.send_notification("Restore Failed", f"{Path(self._file_data.filename).name}")
                     else:
                         # Log that the copy was successful
                         logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
@@ -455,7 +455,7 @@ class Converter:
                             return
 
                         # Send a notification
-                        self.send_notification("Conversion Success", f"{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+                        self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                 else:
                     # Log that the copy and replace was successful
                     logging.info(f'File {input_file_path} replaced successfully with {self._output_file_path}')
@@ -485,7 +485,7 @@ class Converter:
                         return
 
                     # Send a notification
-                    self.send_notification("Conversion Success", f"{self._file_data.backend_name}: {input_file_path.name} - {(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+                    self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
 
     # Send a push notification for the file conversion status
     def send_notification(self, title: str, message: str) -> None:
