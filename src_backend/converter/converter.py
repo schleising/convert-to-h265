@@ -81,7 +81,11 @@ class Converter:
 
         # Delete the output file
         if self._output_file_path is not None:
-            self._output_file_path.unlink(missing_ok=True)
+            try:
+                self._output_file_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting {self._output_file_path}")
+                logging.error(e)
 
             # Set the output file path to None
             self._output_file_path = None
@@ -495,8 +499,17 @@ class Converter:
             subscriptions = push_collection.find()
 
             # Load the claims
-            with open('src/secrets/claims.json', 'r') as file:
-                claims = json.load(file)
+            try:
+                with open('src/secrets/claims.json', 'r') as file:
+                    claims = json.load(file)
+            except FileNotFoundError:
+                logging.error('Could not find claims.json')
+                return
+            
+            # Check the private key exists
+            if not Path('/src/secrets/private_key.pem').exists():
+                logging.error('Could not find private_key.pem')
+                return
 
             # Send the push notifications
             for subscription in subscriptions:
