@@ -1,8 +1,8 @@
 version: "3.2"
 
 services:
-  backend-1:
-    build: backend
+  walker-1:
+    build: walker
     container_name: NAS-1
     hostname: NAS-1
     environment:
