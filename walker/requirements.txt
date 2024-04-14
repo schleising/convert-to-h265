@@ -17,7 +17,7 @@ pydantic==2.7.0
 pydantic_core==2.18.1
 pyee==11.1.0
 pymongo==4.6.3
-python-ffmpeg @ git+https://github.com/schleising/python-ffmpeg.git@07e7dfb6702ce274a7e506b294ce210ec694cd89
+python-ffmpeg==2.0.11
 pywebpush==2.0.0
 requests==2.31.0
 six==1.16.0
