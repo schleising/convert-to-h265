@@ -2,7 +2,7 @@
 FROM linuxserver/ffmpeg:latest as build
 
 # Add Python and Pip
-RUN apt update && apt upgrade -y && apt install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt upgrade -y && apt install -y git python3 python3-pip && rm -rf /var/lib/apt/lists/*
 
 # Add the required packages, disabling cache to reduce the size of the image
 COPY ./requirements.txt /requirements.txt
