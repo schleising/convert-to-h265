@@ -17,7 +17,7 @@ pydantic==2.7.0
 pydantic_core==2.18.1
 pyee==11.1.0
 pymongo==4.6.3
-python-ffmpeg==2.0.11
+python-ffmpeg==2.0.12
 pywebpush==2.0.0
 requests==2.31.0
 six==1.16.0
