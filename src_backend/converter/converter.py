@@ -15,6 +15,8 @@ from ffmpeg import Progress as FFmpegProgress
 
 from pywebpush import webpush, WebPushException
 
+from requests.status_codes import codes
+
 from .models import FileData
 from . import media_collection, push_collection, config, NOTIFICATION_TTL
 
@@ -534,8 +536,18 @@ class Converter:
                 except WebPushException as ex:
                     logging.error(f'Error sending notification: {ex}')
 
-                    if ex.response and ex.response.json():
-                        extra = ex.response.json()
-                        logging.error(f'Remote service replied with a {extra.code}:{extra.errno}, {extra.message}')
+                    if ex.response:
+                        logging.error(f'Status code: {ex.response.status_code}')
+                        logging.error(f'Reason: {ex.response.reason}')
+                        logging.error(f'Content: {ex.response.content}')
+
+                        if ex.response.status_code == codes.gone:
+                            logging.error('Subscription is no longer valid, removing from database')
+                            # Remove the subscription from the database
+                            push_collection.delete_one({"_id": subscription["_id"]})
+
+                        if ex.response.json():
+                            extra = ex.response.json()
+                            logging.error(f'Remote service replied with a {extra.code}:{extra.errno}, {extra.message}')
                 else:
                     logging.debug('Notification sent successfully')
