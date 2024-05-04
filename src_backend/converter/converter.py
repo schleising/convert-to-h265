@@ -536,18 +536,14 @@ class Converter:
                 except WebPushException as ex:
                     logging.error(f'Error sending notification: {ex}')
 
-                    if ex.response:
+                    if ex.response is not None:
                         logging.error(f'Status code: {ex.response.status_code}')
                         logging.error(f'Reason: {ex.response.reason}')
-                        logging.error(f'Content: {ex.response.content}')
+                        logging.error(f'Content: {ex.response.text.strip()}')
 
                         if ex.response.status_code == codes.gone:
                             logging.error('Subscription is no longer valid, removing from database')
                             # Remove the subscription from the database
                             push_collection.delete_one({"_id": subscription["_id"]})
-
-                        if ex.response.json():
-                            extra = ex.response.json()
-                            logging.error(f'Remote service replied with a {extra.code}:{extra.errno}, {extra.message}')
                 else:
                     logging.debug('Notification sent successfully')
