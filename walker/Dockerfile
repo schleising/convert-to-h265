@@ -6,7 +6,7 @@ RUN apk update && apk upgrade && apk add --no-cache build-base libffi-dev
 
 # Add the required packages, disabling cache to reduce the size of the image
 COPY ./requirements.txt /requirements.txt
-RUN pip install --user --no-cache-dir -r /requirements.txt
+RUN pip install --user --no-cache-dir --break-system-packages -r /requirements.txt
 
 # Create a new image with the required packages
 FROM python:alpine

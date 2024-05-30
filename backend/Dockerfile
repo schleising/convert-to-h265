@@ -6,7 +6,7 @@ RUN apt update && apt upgrade -y && apt install -y git python3 python3-pip && rm
 
 # Add the required packages, disabling cache to reduce the size of the image
 COPY ./requirements.txt /requirements.txt
-RUN pip install --user --no-cache-dir -r /requirements.txt
+RUN pip install --user --no-cache-dir --break-system-packages -r /requirements.txt
 
 # Create a new image with the required packages
 FROM linuxserver/ffmpeg:latest
