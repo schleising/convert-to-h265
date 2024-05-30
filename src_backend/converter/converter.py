@@ -208,6 +208,14 @@ class Converter:
             # Create the output file path
             self._output_file_path = (config.config_data.folders.backup / input_file_path.name).with_suffix(".hevc.mkv")
 
+            # Set the crf value based on the video height in pixels, 28 is the default, 23 is for videos with a height of 500 pixels or less
+            crf = 28
+            first_video_stream = self._file_data.first_video_stream
+            if first_video_stream is not None:
+                height = self._file_data.video_information.streams[first_video_stream].height
+                if height is not None and height <= 500:
+                    crf = 23
+
             # Convert the file
             self._ffmpeg = (
                 FFmpeg
@@ -218,7 +226,7 @@ class Converter:
                         'c:v': 'libx265',
                         'c:a': 'copy',
                         'c:s': 'copy',
-                        'crf': 28,
+                        'crf': crf,
                         'preset': 'medium',
                     }
                 )
