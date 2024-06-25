@@ -13,7 +13,7 @@ idna==3.7
 multidict==6.0.5
 py-vapid==1.9.1
 pycparser==2.22
-pydantic==2.7.3
+pydantic==2.7.4
 pydantic_core==2.18.4
 pyee==11.1.0
 pymongo==4.7.3
@@ -22,5 +22,5 @@ pywebpush==2.0.0
 requests==2.32.3
 six==1.16.0
 typing_extensions==4.12.2
-urllib3==2.2.1
+urllib3==2.2.2
 yarl==1.9.4
