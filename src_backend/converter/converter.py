@@ -304,14 +304,17 @@ class Converter:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
 
+                # Check that the file size has been reduced
+                file_size_reduced = self._output_file_path.stat().st_size < input_file_path.stat().st_size
+
                 # Update the file_data object
                 self._file_data.converting = False
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
-                self._file_data.copying = True
+                self._file_data.copying = True if file_size_reduced else False
                 self._file_data.end_conversion_time = datetime.now()
                 self._file_data.percentage_complete = 100
-                self._file_data.current_size = self._output_file_path.stat().st_size
+                self._file_data.current_size = self._output_file_path.stat().st_size if file_size_reduced else input_file_path.stat().st_size
 
                 # Update the file in MongoDB
                 try:
@@ -338,6 +341,12 @@ class Converter:
                     logging.error("Could not connect to MongoDB.")
 
                     # Exit without swapping the converted file for the original
+                    return
+                
+                # Exit without swapping the converted file for the original if the file size was not reduced
+                if not file_size_reduced:
+                    # Send a notification
+                    self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                     return
 
                 # Create a path for the backup file
