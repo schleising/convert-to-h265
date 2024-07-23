@@ -131,11 +131,6 @@ class CodecDetector:
                             # Stream is a video stream so increment the video stream count
                             video_stream_count += 1
 
-                            # Check if the video stream is already encoded in hevc
-                            if stream.codec_name == 'hevc':
-                                # Video stream is already encoded in hevc so we don't need to convert it
-                                conversion_required = False
-
                         elif stream.codec_type == 'audio':
                             # If the first audio stream has not been set, set it to the current stream
                             if first_audio_stream is None:
