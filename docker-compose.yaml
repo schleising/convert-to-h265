@@ -13,7 +13,7 @@ services:
     volumes:
       - ./src_backend:/src:ro
       - converter_volume:/Conversions:rw
-      - /Volumes/steve/Downloads/Conversions:/Media:rw
+      - /Volumes/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
