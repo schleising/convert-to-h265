@@ -1,5 +1,5 @@
 # Start with the Linuxserver ffmpeg image as the build image
-FROM linuxserver/ffmpeg:latest as build
+FROM linuxserver/ffmpeg:latest AS build
 
 # Add Python and Pip
 RUN apt update && apt upgrade -y && apt install -y git python3 python3-pip && rm -rf /var/lib/apt/lists/*

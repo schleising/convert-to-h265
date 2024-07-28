@@ -1,5 +1,5 @@
 # Start with the Linuxserver ffmpeg image as the build image
-FROM python:alpine as build
+FROM python:alpine AS build
 
 # Add Python and Pip
 RUN apk update && apk upgrade && apk add --no-cache build-base libffi-dev
