@@ -243,12 +243,14 @@ class Converter:
             # Copy the file to the temporary input path
             shutil.copy2(input_file_path, self._temporary_input_path)
 
-            # Clear the copying flag in the db and the file_data object
+            # Set the start conversion tima and clear the copying flag in the db and the file_data object
+            self._file_data.start_conversion_time = datetime.now()
             self._file_data.copying = False
 
             try:
                 # Update the file in MongoDB
                 media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                    "start_conversion_time": self._file_data.start_conversion_time,
                     "copying": self._file_data.copying,
                 }})
             except ServerSelectionTimeoutError:
