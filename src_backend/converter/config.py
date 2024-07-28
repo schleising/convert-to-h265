@@ -7,6 +7,7 @@ class Folders(BaseModel):
     include: list[Path]
     exclude: list[Path] | None
     backup: Path
+    conversions: Path
 
 class Schedule(BaseModel):
     timezone: str
@@ -36,12 +37,13 @@ class Config:
                     exclude = [
                         Path("/Media/Films/VR")
                     ],
-                    backup = Path("/Media/Backup")
+                    backup = Path("/Media/Backup"),
+                    conversions = Path("/Conversions"),
                 ),
                 schedule=Schedule(
                     timezone="Europe/London",
                     scan_time=time(hour=0, minute=0),
                     start_conversion_time=time(hour=0, minute=0),
-                    end_conversion_time=time(hour=23, minute=59)
-                )
+                    end_conversion_time=time(hour=23, minute=59),
+                ),
             )

@@ -1,5 +1,3 @@
-version: "3.2"
-
 services:
   backend-1:
     build: backend
@@ -8,13 +6,17 @@ services:
     environment:
       - FOLDER_WALKER=FALSE
       - BACKEND_NAME=Mini2-1
-      - DB_URL=mongodb://macmini2:27017/
+      - DB_URL=mongodb://host.docker.internal:27017
       - DB_NAME=media
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
     volumes:
       - ./src_backend:/src:ro
-      - /Volumes/Media:/Media:rw
+      - converter_volume:/Conversions:rw
+      - /Volumes/steve/Downloads/Conversions:/Media:rw
     restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
+
+volumes:
+  converter_volume:

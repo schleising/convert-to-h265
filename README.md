@@ -41,3 +41,19 @@ graph TD
     G --> H
     H --> D
 ```
+
+## Flowchart for file manipulation
+```mermaid
+graph TD
+    A(Start) --> B[Get path to convert]
+    B --> C[Get __filename__ and __ext__]
+    C --> D[Create new temporary input path\n/Conversions/__filename__.__ext__]
+    D --> E[Create new temporary output path\n/Conversions/__filename__.conv.__ext__]
+    E --> F[Copy file to temporary input path]
+    F --> G[Run ffmpeg command to convert file\nfrom temporary input path\nto temporary output path]
+    G --> H[Copy file from temporary input path\nto backup path]
+    H --> I[Copy file from temporary output path\nto original path]
+    I --> J[Delete temporary input path]
+    J --> K[Delete temporary output path]
+    K --> L(End)
+```

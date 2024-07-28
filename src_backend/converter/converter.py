@@ -28,8 +28,12 @@ class Converter:
         # Create file_data object and set it to None
         self._file_data: FileData | None = None
 
-        # Create output file path and set it to None
-        self._output_file_path: Path | None = None
+        # Create the temporary input and output paths and set them to None
+        self._temporary_input_path: Path | None = None
+        self._temporary_output_path: Path | None = None
+
+        # Create the backup path and set it to None
+        self._backup_path: Path | None = None
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -81,19 +85,8 @@ class Converter:
             # Set the file_data object to None
             self._file_data = None
 
-        # Delete the output file
-        if self._output_file_path is not None:
-            try:
-                self._output_file_path.unlink(missing_ok=True)
-            except OSError as e:
-                logging.error(f"Error deleting {self._output_file_path}")
-                logging.error(e)
-
-            # Set the output file path to None
-            self._output_file_path = None
-
+        # Terminate ffmpeg
         if self._ffmpeg is not None:
-            # Terminate ffmpeg
             try:
                 self._ffmpeg.terminate()
             except FFmpegError as e:
@@ -101,6 +94,38 @@ class Converter:
 
             # Set ffmpeg to None
             self._ffmpeg = None
+
+        # Delete the temporary input and output files
+        if self._temporary_input_path is not None:
+            try:
+                self._temporary_input_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting temp input {self._temporary_input_path}")
+                logging.error(e)
+
+            # Set the output file path to None
+            self._temporary_input_path = None
+
+        if self._temporary_output_path is not None:
+            try:
+                self._temporary_output_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting temp output {self._temporary_output_path}")
+                logging.error(e)
+
+            # Set the output file path to None
+            self._temporary_output_path = None
+
+        # Delete the backup file
+        if self._backup_path is not None:
+            try:
+                self._backup_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting backup {self._backup_path}")
+                logging.error(e)
+
+            # Set the backup path to None
+            self._backup_path = None
 
         if not conversion_failed:
             # Exit the application
@@ -177,6 +202,7 @@ class Converter:
             self._file_data.start_conversion_time = datetime.now()
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
+            self._file_data.copying = True
 
             try:
                 # Update the file in MongoDB
@@ -185,6 +211,7 @@ class Converter:
                     "start_conversion_time": self._file_data.start_conversion_time,
                     "backend_name": self._file_data.backend_name,
                     "speed": 0,
+                    "copying": self._file_data.copying,
                 }})
             except ServerSelectionTimeoutError:
                 logging.error("Could not connect to MongoDB.")
@@ -205,8 +232,55 @@ class Converter:
                 self._file_data = None
                 return
 
-            # Create the output file path
-            self._output_file_path = (config.config_data.folders.backup / input_file_path.name).with_suffix(".hevc.mkv")
+            # Get filename and extension
+            filename = input_file_path.stem
+            extension = input_file_path.suffix
+
+            # Create temporary input and output paths
+            self._temporary_input_path = Path(config.config_data.folders.conversions, filename + extension)
+            self._temporary_output_path = Path(config.config_data.folders.conversions, filename + ".hevc.mkv")
+
+            # Copy the file to the temporary input path
+            shutil.copy2(input_file_path, self._temporary_input_path)
+
+            # Clear the copying flag in the db and the file_data object
+            self._file_data.copying = False
+
+            try:
+                # Update the file in MongoDB
+                media_collection.update_one({"filename": self._file_data.filename}, {"$set": {
+                    "copying": self._file_data.copying,
+                }})
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+
+                # Clean up and terminate
+                self._cleanup_and_terminate()
+
+                return
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+
+                # Clean up and terminate
+                self._cleanup_and_terminate()
+
+                return
+            except AutoReconnect:
+                logging.error("Could not connect to MongoDB.")
+
+                # Set the output file path to None and return without converting
+                self._file_data = None
+
+                # Clean up and terminate
+                self._cleanup_and_terminate()
+
+                return
 
             # Set the crf value based on the video height in pixels, 28 is the default, 23 is for videos with a height of 500 pixels or less
             crf = 28
@@ -220,8 +294,8 @@ class Converter:
             self._ffmpeg = (
                 FFmpeg
                 .option(FFmpeg(), 'y')
-                .input(input_file_path)
-                .output(self._output_file_path,
+                .input(self._temporary_input_path)
+                .output(self._temporary_output_path,
                     {
                         'c:v': 'libx265',
                         'c:a': 'copy',
@@ -305,7 +379,7 @@ class Converter:
                 logging.info(f"Successfully converted {self._file_data.filename}")
 
                 # Check that the file size has been reduced
-                file_size_reduced = self._output_file_path.stat().st_size < input_file_path.stat().st_size
+                file_size_reduced = self._temporary_output_path.stat().st_size < input_file_path.stat().st_size
 
                 # Update the file_data object
                 self._file_data.converting = False
@@ -314,7 +388,7 @@ class Converter:
                 self._file_data.copying = True if file_size_reduced else False
                 self._file_data.end_conversion_time = datetime.now()
                 self._file_data.percentage_complete = 100
-                self._file_data.current_size = self._output_file_path.stat().st_size if file_size_reduced else input_file_path.stat().st_size
+                self._file_data.current_size = self._temporary_output_path.stat().st_size if file_size_reduced else input_file_path.stat().st_size
 
                 # Update the file in MongoDB
                 try:
@@ -330,15 +404,24 @@ class Converter:
                 except ServerSelectionTimeoutError:
                     logging.error("Could not connect to MongoDB.")
 
+                    # Clean up and terminate
+                    self._cleanup_and_terminate()
+
                     # Exit without swapping the converted file for the original
                     return
                 except NetworkTimeout:
                     logging.error("Could not connect to MongoDB.")
 
+                    # Clean up and terminate
+                    self._cleanup_and_terminate()
+
                     # Exit without swapping the converted file for the original
                     return
                 except AutoReconnect:
                     logging.error("Could not connect to MongoDB.")
+
+                    # Clean up and terminate
+                    self._cleanup_and_terminate()
 
                     # Exit without swapping the converted file for the original
                     return
@@ -346,29 +429,29 @@ class Converter:
                 # Exit without swapping the converted file for the original if the file size was not reduced
                 if not file_size_reduced:
                     # Send a notification
-                    self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+                    self.send_notification("File Size not Reduced", f"{self._temporary_input_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                     return
 
                 # Create a path for the backup file
-                backup_path = Path(config.config_data.folders.backup, input_file_path.name)
+                self._backup_path = Path(config.config_data.folders.backup, self._temporary_input_path.name)
 
                 try:
                     # Log that we are hardlinking the input file to the backup folder
-                    logging.info(f'Hardlinking {input_file_path} to backup folder')
+                    logging.info(f'Hardlinking {self._temporary_input_path} to backup folder')
 
                     # Hardlink the input file to the backup folder
-                    backup_path.hardlink_to(input_file_path)
+                    self._backup_path.hardlink_to(self._temporary_input_path)
                 except OSError as e:
                     # There was an error creating the hard link, try copying the file instead
                     try:
                         # Log that the hard link failed
-                        logging.info(f'Hardlinking {input_file_path} to backup folder failed, trying to copy instead')
+                        logging.info(f'Hardlinking {self._temporary_input_path} to backup folder failed, trying to copy instead')
 
                         # Copy the file to the backup folder
-                        shutil.copy2(input_file_path, backup_path)
+                        shutil.copy2(self._temporary_input_path, self._backup_path)
                     except OSError as e:
                         # There was an error copying the file
-                        logging.error(f'Error copying {input_file_path} to backup folder')
+                        logging.error(f'Error copying {self._temporary_input_path} to backup folder')
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
@@ -383,43 +466,58 @@ class Converter:
                         except ServerSelectionTimeoutError:
                             logging.error("Could not connect to MongoDB.")
 
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
+
                             # Exit without swapping the converted file for the original
                             return
                         except NetworkTimeout:
                             logging.error("Could not connect to MongoDB.")
 
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
+
                             # Exit without swapping the converted file for the original
                             return
                         except AutoReconnect:
                             logging.error("Could not connect to MongoDB.")
+
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
 
                             # Exit without swapping the converted file for the original
                             return
 
                         # Send a notification
                         self.send_notification("Backup Failed", f"{Path(self._file_data.filename).name}")
+
+                        # Clean up and terminate
+                        self._cleanup_and_terminate()
                     else:
                         # Log that the copy was successful
-                        logging.info(f'File {input_file_path} backed up successfully')
+                        logging.info(f'File {self._temporary_input_path} backed up successfully')
                 else:
                     # Log that the hard link was successful
-                    logging.info(f'File {input_file_path} hardlink created successfully')
+                    logging.info(f'File {self._temporary_input_path} hardlink created successfully')
 
                 try:
                     # Log that we are replacing the input file with the output file
-                    logging.info(f'Replacing {input_file_path} with {self._output_file_path}')
+                    logging.info(f'Replacing {input_file_path} with {self._temporary_output_path}')
 
                     # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
-                    self._output_file_path = self._output_file_path.replace(input_file_path)
+                    self._temporary_output_path.replace(input_file_path)
 
                 except OSError as e:
                     # If there was an error replacing the file, try copying the file instead
                     try:
+                        # Log that the replace failed
+                        logging.info(f'Replacing {input_file_path} with {self._temporary_output_path} failed, trying to copy instead')
+
                         # Copy the file to the original folder
-                        shutil.copy2(self._output_file_path, input_file_path)
+                        shutil.copy2(self._temporary_output_path, input_file_path)
                     except OSError as e:
                         # There was an error copying the file
-                        logging.error(f'Error copying {self._output_file_path} to {input_file_path}')
+                        logging.error(f'Error copying {self._temporary_output_path} to {input_file_path}')
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
@@ -434,24 +532,36 @@ class Converter:
                         except ServerSelectionTimeoutError:
                             logging.error("Could not connect to MongoDB.")
 
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
+
                             # Exit without swapping the converted file for the original
                             return
                         except NetworkTimeout:
                             logging.error("Could not connect to MongoDB.")
+
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
 
                             # Exit without swapping the converted file for the original
                             return
                         except AutoReconnect:
                             logging.error("Could not connect to MongoDB.")
 
+                            # Clean up and terminate
+                            self._cleanup_and_terminate()
+
                             # Exit without swapping the converted file for the original
                             return
 
                         # Send a notification
                         self.send_notification("Restore Failed", f"{Path(self._file_data.filename).name}")
+
+                        # Clean up and terminate
+                        self._cleanup_and_terminate()
                     else:
                         # Log that the copy was successful
-                        logging.info(f'File {self._output_file_path} copied successfully to {input_file_path}')
+                        logging.info(f'File {self._temporary_output_path} copied successfully to {input_file_path}')
 
                         # Update the file_data object
                         self._file_data.copying = False
@@ -481,7 +591,7 @@ class Converter:
                         self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
                 else:
                     # Log that the copy and replace was successful
-                    logging.info(f'File {input_file_path} replaced successfully with {self._output_file_path}')
+                    logging.info(f'File {input_file_path} replaced successfully with {self._temporary_output_path}')
 
                     # Update the file_data object
                     self._file_data.copying = False
@@ -509,6 +619,27 @@ class Converter:
 
                     # Send a notification
                     self.send_notification("Conversion Success", f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%")
+
+                # Delete the temporary input and output files
+                if self._temporary_input_path is not None:
+                    try:
+                        self._temporary_input_path.unlink(missing_ok=True)
+                    except OSError as e:
+                        logging.error(f"Error deleting temp input {self._temporary_input_path}")
+                        logging.error(e)
+
+                    # Set the output file path to None
+                    self._temporary_input_path = None
+
+                if self._temporary_output_path is not None:
+                    try:
+                        self._temporary_output_path.unlink(missing_ok=True)
+                    except OSError as e:
+                        logging.error(f"Error deleting temp output {self._temporary_output_path}")
+                        logging.error(e)
+
+                    # Set the output file path to None
+                    self._temporary_output_path = None
 
     # Send a push notification for the file conversion status
     def send_notification(self, title: str, message: str) -> None:

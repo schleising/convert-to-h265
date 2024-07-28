@@ -14,6 +14,9 @@
     # Folder to backup converted files to be checked before deletion
     backup = "/Media/Backup"
 
+    # Temporary folder for conversions
+    conversions = "/Conversions"
+
 # Schedule definitions
 [schedule]
     # The timezone to use for the schedule, all of the following times are in this timezone
