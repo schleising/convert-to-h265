@@ -1,0 +1,56 @@
+services:
+  mongodb:
+    image: mongo
+    hostname: mongodb
+    ports:
+      - 27017:27017
+    volumes:
+      - db_volume:/data/db:rw
+      - db_conf:/data/configdb:rw
+    restart: always
+
+  walker-1:
+    build: walker
+    depends_on:
+      - mongodb
+    container_name: MB-1
+    hostname: MB-1
+    environment:
+      - FOLDER_WALKER=TRUE
+      - BACKEND_NAME=MB-1
+      - DB_URL=mongodb://host.docker.internal:27017/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
+      - PUSH_COLLECTION=push_subscriptions
+    volumes:
+      - ./src_backend:/src:ro
+      - /Users/steve/Downloads/Media:/Media:rw
+    restart: unless-stopped
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+  backend-1:
+    build: backend
+    depends_on:
+      - mongodb
+    container_name: MB-2
+    hostname:  MB-2
+    environment:
+      - FOLDER_WALKER=FALSE
+      - BACKEND_NAME=MB-2
+      - DB_URL=mongodb://host.docker.internal:27017/
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
+      - PUSH_COLLECTION=push_subscriptions
+    volumes:
+      - ./src_backend:/src:ro
+      - converter_volume:/Conversions:rw
+      - /Users/steve/Downloads/Media:/Media:rw
+    restart: unless-stopped
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+volumes:
+  db_volume:
+  db_conf:
+  converter_volume:
