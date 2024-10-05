@@ -304,7 +304,8 @@ class Converter:
                         'c:s': 'copy',
                         'crf': crf,
                         'preset': 'medium',
-                    }
+                    },
+                    map=[f'0:{first_video_stream}', f'0:{self._file_data.first_audio_stream}', '0:s'],
                 )
             )
 

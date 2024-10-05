@@ -132,9 +132,11 @@ class CodecDetector:
                             video_stream_count += 1
 
                         elif stream.codec_type == 'audio':
-                            # If the first audio stream has not been set, set it to the current stream
-                            if first_audio_stream is None:
-                                first_audio_stream = stream.index
+                            # Check if the audio stream in in English
+                            if stream.tags and (stream.tags.language == 'eng' or stream.tags.language == 'und'):
+                                # If the first audio stream has not been set, set it to the current stream
+                                if first_audio_stream is None:
+                                    first_audio_stream = stream.index
 
                             # Stream is an audio stream so increment the audio stream count
                             audio_stream_count += 1
@@ -146,6 +148,13 @@ class CodecDetector:
 
                             # Stream is a subtitle stream so increment the subtitle stream count
                             subtitle_stream_count += 1
+
+                    # Set the first video and audio stream to safe values if they are None
+                    if first_video_stream is None:
+                        first_video_stream = 0
+
+                    if first_audio_stream is None:
+                        first_audio_stream = 1
 
                     # Create a FileData object
                     file_data = FileData(
