@@ -108,6 +108,8 @@ class CodecDetector:
                 subtitle_stream_count = 0
                 first_video_stream = None
                 first_audio_stream = None
+                first_eng_audio_stream = None
+                first_und_audio_stream = None
                 first_subtitle_stream = None
 
                 if ffprobe_output.returncode == 0:
@@ -132,11 +134,22 @@ class CodecDetector:
                             video_stream_count += 1
 
                         elif stream.codec_type == 'audio':
+                            # If the first audio stream has not been set, set it to the current stream
+                            if first_audio_stream is None:
+                                first_audio_stream = stream.index
+
                             # Check if the audio stream in in English
-                            if stream.tags and (stream.tags.language == 'eng' or stream.tags.language == 'und'):
-                                # If the first audio stream has not been set, set it to the current stream
-                                if first_audio_stream is None:
-                                    first_audio_stream = stream.index
+                            if stream.tags:
+                                if stream.tags.language == 'eng':
+                                    # If the first audio stream has not been set, set it to the current stream
+                                    if first_eng_audio_stream is None:
+                                        first_eng_audio_stream = stream.index
+
+                                # Check if the audio stream is undefined
+                                if stream.tags.language == 'und':
+                                    # If the first audio stream has not been set, set it to the current stream
+                                    if first_und_audio_stream is None:
+                                        first_und_audio_stream = stream.index
 
                             # Stream is an audio stream so increment the audio stream count
                             audio_stream_count += 1
@@ -153,6 +166,15 @@ class CodecDetector:
                     if first_video_stream is None:
                         first_video_stream = 0
 
+                    # Set the first audio stream to the first English audio stream if it exists,
+                    # otherwise set it to the first undefined audio stream.
+                    # If neither exist, leave it as the first audio stream found
+                    if first_eng_audio_stream is not None:
+                        first_audio_stream = first_eng_audio_stream
+                    elif first_und_audio_stream is not None:
+                        first_audio_stream = first_und_audio_stream
+
+                    # If the first audio stream is still None, set it to 1
                     if first_audio_stream is None:
                         first_audio_stream = 1
 
