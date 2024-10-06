@@ -292,6 +292,18 @@ class Converter:
                 if height is not None and height <= 500:
                     crf = 23
 
+            mapping: list[str] = []
+
+            # Build map list
+            if self._file_data.video_streams > 0:
+                mapping.append(f'0:{first_video_stream}')
+
+            if self._file_data.audio_streams > 0:
+                mapping.append(f'0:a')
+
+            if self._file_data.subtitle_streams > 0:
+                mapping.append('0:s')
+
             # Convert the file
             self._ffmpeg = (
                 FFmpeg
@@ -305,9 +317,12 @@ class Converter:
                         'crf': crf,
                         'preset': 'medium',
                     },
-                    map=[f'0:{first_video_stream}', f'0:{self._file_data.first_audio_stream}', '0:s'],
+                    map=mapping,
                 )
             )
+
+            # Log the ffmpeg command
+            logging.info(f'ffmpeg command: {" ".join(self._ffmpeg.arguments)}')
 
             # Store the last update time
             self.last_update_time = datetime.now()
