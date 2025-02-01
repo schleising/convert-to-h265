@@ -254,7 +254,7 @@ class Converter:
                     "copying": self._file_data.copying,
                 }})
             except ServerSelectionTimeoutError:
-                logging.error("Could not connect to MongoDB.")
+                logging.error("Could not connect to MongoDB, ServerSelectionTimeoutError")
 
                 # Set the output file path to None and return without converting
                 self._file_data = None
@@ -264,7 +264,7 @@ class Converter:
 
                 return
             except NetworkTimeout:
-                logging.error("Could not connect to MongoDB.")
+                logging.error("Could not connect to MongoDB, NetworkTimeout")
 
                 # Set the output file path to None and return without converting
                 self._file_data = None
@@ -274,7 +274,7 @@ class Converter:
 
                 return
             except AutoReconnect:
-                logging.error("Could not connect to MongoDB.")
+                logging.error("Could not connect to MongoDB, AutoReconnect")
 
                 # Set the output file path to None and return without converting
                 self._file_data = None
