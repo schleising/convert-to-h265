@@ -8,6 +8,11 @@ services:
       - db_volume:/data/db:rw
       - db_conf:/data/configdb:rw
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   walker-1:
     build: walker
@@ -28,6 +33,11 @@ services:
     restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend-1:
     build: backend
@@ -49,6 +59,11 @@ services:
     restart: unless-stopped
     extra_hosts:
         - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   db_volume:
