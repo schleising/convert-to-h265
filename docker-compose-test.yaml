@@ -28,7 +28,7 @@ services:
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
     volumes:
-      - ./src_backend:/src:ro
+      - ./src:/src:ro
       - /Users/steve/Downloads/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
@@ -53,7 +53,7 @@ services:
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
     volumes:
-      - ./src_backend:/src:ro
+      - ./src:/src:ro
       - converter_volume:/Conversions:rw
       - /Users/steve/Downloads/Media:/Media:rw
     restart: unless-stopped

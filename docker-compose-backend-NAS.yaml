@@ -13,7 +13,7 @@ services:
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
     volumes:
-      - ./src_backend:/src:ro
+      - ./src:/src:ro
       - /volume2/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
