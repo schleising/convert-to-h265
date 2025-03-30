@@ -292,6 +292,9 @@ class Converter:
                 if height is not None and height <= 500:
                     crf = 23
 
+            # Set the subtitles to copy by default
+            subtitle_codec = 'copy'
+
             mapping: list[str] = []
 
             # Build map list
@@ -304,6 +307,10 @@ class Converter:
             if self._file_data.subtitle_streams > 0:
                 mapping.append('0:s')
 
+                # If any subtitle stream is mov_text convert it to srt
+                if any(stream.codec_name == 'mov_text' for stream in self._file_data.video_information.streams if stream.codec_type == 'subtitle'):
+                    subtitle_codec = 'srt'
+
             # Convert the file
             self._ffmpeg = (
                 FFmpeg
@@ -313,7 +320,7 @@ class Converter:
                     {
                         'c:v': 'libx265',
                         'c:a': 'copy',
-                        'c:s': 'copy',
+                        'c:s': subtitle_codec,
                         'crf': crf,
                         'preset': 'medium',
                     },
