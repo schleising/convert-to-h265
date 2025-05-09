@@ -43,9 +43,11 @@ if __name__ == '__main__':
     tv_filepath = Path('/volume2/Media/TV')
     film_filepath = Path('/volume2/Media/Films')
     backup_filepath = Path('/volume2/Media/Backup')
+    recycle_filepath = Path('/volume2/Media/#recycle')
 
     smb_delete = SMBDelete(args.delete)
 
     smb_delete.find_smbdelete(tv_filepath)
     smb_delete.find_smbdelete(film_filepath)
     smb_delete.find_smbdelete(backup_filepath)
+    smb_delete.find_smbdelete(recycle_filepath)
