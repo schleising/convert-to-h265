@@ -284,12 +284,12 @@ class Converter:
 
                 return
 
-            # Set the crf value based on the video height in pixels, 28 is the default, 23 is for videos with a height of 500 pixels or less
+            # Set the crf value based on the video height in pixels, 28 is the default, 23 is for videos with a height of 600 pixels or less
             crf = 28
             first_video_stream = self._file_data.first_video_stream
             if first_video_stream is not None:
                 height = self._file_data.video_information.streams[first_video_stream].height
-                if height is not None and height <= 500:
+                if height is not None and height <= 600:
                     crf = 23
 
             # Set the subtitles to copy by default
