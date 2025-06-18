@@ -714,7 +714,7 @@ class Converter:
                         logging.error(f'Reason: {ex.response.reason}')
                         logging.error(f'Content: {ex.response.text.strip()}')
 
-                        if ex.response.status_code == codes.gone:
+                        if ex.response.status_code in [codes.not_found, codes.gone]:
                             logging.error('Subscription is no longer valid, removing from database')
                             # Remove the subscription from the database
                             push_collection.delete_one({"_id": subscription["_id"]})
