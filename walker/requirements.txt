@@ -11,14 +11,14 @@ dnspython==2.7.0
 frozenlist==1.7.0
 http_ece==1.2.1
 idna==3.10
-multidict==6.4.4
+multidict==6.5.0
 propcache==0.3.2
 py-vapid==1.9.2
 pycparser==2.22
 pydantic==2.11.7
 pydantic_core==2.33.2
 pyee==13.0.0
-pymongo==4.13.1
+pymongo==4.13.2
 python-ffmpeg==2.0.12
 pywebpush==2.0.3
 requests==2.32.4
