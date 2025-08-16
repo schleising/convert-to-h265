@@ -11,7 +11,7 @@ dnspython==2.7.0
 frozenlist==1.7.0
 http_ece==1.2.1
 idna==3.10
-multidict==6.6.3
+multidict==6.6.4
 propcache==0.3.2
 py-vapid==1.9.2
 pycparser==2.22
