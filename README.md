@@ -2,6 +2,22 @@
 
 This is a simple script to convert all videos in a directory to h265 using ffmpeg.
 
+## Installation
+
+1. Needs a .env file in the root directory with the following variables set:
+
+```
+SMB_HOST=your_smb_host
+SMB_SHARE=your_smb_share
+SMB_USER=your_smb_username
+SMB_PASS=your_smb_password
+```
+
+2. In order to send notifications the following files are needed in the `src/secrets` directory:
+- `claims.json` - Claims file
+- `private_key.pem` - Private key file
+- `public_key.pem` - Public key file
+
 ## Flowchart for file discovery
 
 ```mermaid
