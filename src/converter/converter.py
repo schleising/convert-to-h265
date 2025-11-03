@@ -477,6 +477,7 @@ class Converter:
                     except OSError as e:
                         # There was an error copying the file
                         logging.error(f'Error copying {self._temporary_input_path} to backup folder')
+                        logging.error(e)
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
@@ -543,6 +544,7 @@ class Converter:
                     except OSError as e:
                         # There was an error copying the file
                         logging.error(f'Error copying {self._temporary_output_path} to {input_file_path}')
+                        logging.error(e)
 
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
