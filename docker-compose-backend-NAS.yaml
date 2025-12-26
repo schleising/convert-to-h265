@@ -7,8 +7,8 @@ services:
     hostname: NAS-1
     dns_opt:
       - ndots:1
-      - single-request-reopen
-      - timeout:2
+    dns_search:
+      - home.arpa
     environment:
       - FOLDER_WALKER=TRUE
       - BACKEND_NAME=NAS-1
