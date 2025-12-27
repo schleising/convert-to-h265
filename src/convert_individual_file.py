@@ -1,7 +1,7 @@
 import os
 import sys
 
-os.environ["DB_URL"] = "mongodb://macmini2.local:27017"
+os.environ["DB_URL"] = "mongodb://macmini2.home.arpa:27017"
 os.environ["DB_NAME"] = "media"
 os.environ["DB_COLLECTION"] = "media_collection"
 os.environ["PUSH_COLLECTION"] = "push_subscriptions"
