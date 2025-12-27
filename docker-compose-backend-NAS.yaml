@@ -5,14 +5,10 @@ services:
     build: walker
     container_name: NAS-1
     hostname: NAS-1
-    dns_opt:
-      - ndots:1
-    dns_search:
-      - home.arpa
     environment:
       - FOLDER_WALKER=TRUE
       - BACKEND_NAME=NAS-1
-      - DB_URL=mongodb://macmini2:27017/
+      - DB_URL=mongodb://macmini2.home.arpa:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
