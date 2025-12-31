@@ -30,4 +30,4 @@ volumes:
     driver_opts:
       type: cifs
       device: "//${SMB_HOST}/${SMB_SHARE}"
-      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,iocharset=utf8,rw,soft,nounix,noserverino"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,iocharset=utf8,rw,soft"
