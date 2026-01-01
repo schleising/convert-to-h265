@@ -71,6 +71,19 @@ except NetworkTimeout:
     logging.error("Could not create index on filename")
 except AutoReconnect:
     logging.error("Could not create index on filename")
+else:
+    logging.info("Created index on filename in media collection")
+
+try:
+    media_collection.create_index([("inode", ASCENDING)], unique=True)
+except ServerSelectionTimeoutError:
+    logging.error("Could not create index on inode")
+except NetworkTimeout:
+    logging.error("Could not create index on inode")
+except AutoReconnect:
+    logging.error("Could not create index on inode")
+else:
+    logging.info("Created index on inode in media collection")
 
 try:
     push_collection.create_index([("endpoint", ASCENDING)], unique=True)
@@ -80,6 +93,8 @@ except NetworkTimeout:
     logging.error("Could not create index on endpoint")
 except AutoReconnect:
     logging.error("Could not create index on endpoint")
+else:
+    logging.info("Created index on endpoint in push collection")
 
 # Import TaskScheduler to make it available directly from the converter package
 from .task_scheduler import TaskScheduler
