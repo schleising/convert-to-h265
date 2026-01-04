@@ -31,7 +31,7 @@ class CodecDetector:
         logging.info("Getting old data from MongoDB")
         try:
             data_from_db = media_collection.find(
-                {"deleted": {"$ne": True}}, {"filename": 1, "inode": 1, "_id": 0}
+                {"deleted": False}, {"filename": 1, "inode": 1, "_id": 0}
             )
 
             # Convert the list of FileData objects to a dictionary with the file path as the key
