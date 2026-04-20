@@ -15,10 +15,10 @@ multidict==6.7.1
 propcache==0.4.1
 py-vapid==1.9.4
 pycparser==3.0
-pydantic==2.13.2
-pydantic_core==2.46.2
+pydantic==2.13.3
+pydantic_core==2.46.3
 pyee==13.0.1
-pymongo==4.16.0
+pymongo==4.17.0
 python-ffmpeg==2.0.12
 pywebpush==2.3.0
 requests==2.33.1
