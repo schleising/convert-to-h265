@@ -841,8 +841,8 @@ class Converter:
                             {
                                 "title": title,
                                 "body": message,
-                                "icon": "/icons/tools/converter/android-chrome-192x192.png",
-                                "badge": "/icons/tools/converter/badge-192x192.png",
+                                "icon": "/icons/tools/converter/android-chrome-192x192-20260504.png",
+                                "badge": "/icons/tools/converter/badge-192x192-20260504.png",
                                 "url": "/",
                                 "requireInteraction": True,
                             }
