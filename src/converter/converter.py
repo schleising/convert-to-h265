@@ -842,7 +842,7 @@ class Converter:
                                 "title": title,
                                 "body": message,
                                 "icon": "/icons/tools/converter/android-chrome-192x192-20260504.png",
-                                "badge": "/icons/tools/converter/badge-192x192-20260504.png",
+                                "badge": "/icons/tools/converter/badge-192x192-v2-0-2.png",
                                 "url": "/",
                                 "requireInteraction": True,
                             }
