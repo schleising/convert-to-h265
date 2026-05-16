@@ -10,7 +10,7 @@ cryptography==48.0.0
 dnspython==2.8.0
 frozenlist==1.8.0
 http_ece==1.2.1
-idna==3.13
+idna==3.15
 multidict==6.7.1
 propcache==0.5.2
 py-vapid==1.9.4
@@ -21,7 +21,7 @@ pyee==13.0.1
 pymongo==4.17.0
 python-ffmpeg==2.0.12
 pywebpush==2.3.0
-requests==2.33.1
+requests==2.34.2
 six==1.17.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
