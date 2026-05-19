@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import logging
@@ -137,6 +137,9 @@ class Converter:
 
     def _get_secrets_path(self, filename: str) -> Path:
         return config.config_data.runtime.secrets_dir / filename
+
+    def _utc_now(self) -> datetime:
+        return datetime.now(timezone.utc)
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -328,7 +331,7 @@ class Converter:
 
             # Update the file_data object
             self._file_data.converting = True
-            self._file_data.start_conversion_time = datetime.now()
+            self._file_data.start_conversion_time = self._utc_now()
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
             self._file_data.copying = True
@@ -385,7 +388,7 @@ class Converter:
             shutil.copy2(input_file_path, self._temporary_input_path)
 
             # Set the start conversion tima and clear the copying flag in the db and the file_data object
-            self._file_data.start_conversion_time = datetime.now()
+            self._file_data.start_conversion_time = self._utc_now()
             self._file_data.copying = False
 
             try:
@@ -472,14 +475,14 @@ class Converter:
             logging.info(f'ffmpeg command: {" ".join(self._ffmpeg.arguments)}')
 
             # Store the last update time
-            self.last_update_time = datetime.now()
+            self.last_update_time = self._utc_now()
 
             # Update the progress bar when ffmpeg emits a progress event
             @self._ffmpeg.on("progress")
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
                 if self._file_data is not None:
                     # If progress has not been updated in the last second, update it
-                    if (datetime.now() - self.last_update_time).total_seconds() > 1:
+                    if (self._utc_now() - self.last_update_time).total_seconds() > 1:
                         # Calculate the percentage complete
                         duration = timedelta(
                             seconds=self._file_data.video_information.format.duration
@@ -514,7 +517,7 @@ class Converter:
                         logging.debug(ffmpeg_progress)
 
                         # Update the last update time
-                        self.last_update_time = datetime.now()
+                        self.last_update_time = self._utc_now()
 
             @self._ffmpeg.on("terminated")
             def _on_terminated() -> None:
@@ -569,7 +572,7 @@ class Converter:
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
                 self._file_data.copying = True if file_size_reduced else False
-                self._file_data.end_conversion_time = datetime.now()
+                self._file_data.end_conversion_time = self._utc_now()
                 self._file_data.percentage_complete = 100
                 self._file_data.current_size = (
                     self._temporary_output_path.stat().st_size
