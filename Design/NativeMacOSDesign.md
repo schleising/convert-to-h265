@@ -53,6 +53,7 @@ The codebase has several assumptions that are acceptable in Docker but need to b
 3. Notification secret paths are partly hardcoded as `/src/secrets/...`, which is Docker-specific.
 4. There is no native launchd service definition, launcher script, or installer.
 5. There is no native configuration override path for a Mac-specific deployment.
+6. Filenames stored in MongoDB follow the Docker convention rooted at `/Media/...`, but the native Mac mount point is expected to be `/Volumes/Media/...`.
 
 ## Target Architecture
 
@@ -99,6 +100,7 @@ Shared across both NAS and Mac:
 5. Make the macOS install idempotent.
 6. Keep Docker and native runtime configuration separate where necessary.
 7. Add macOS hardware encoding without breaking Linux Docker behavior.
+8. Provide simple command-line service controls for start, stop, restart, status, and uninstall.
 
 ## Non-Goals
 
@@ -160,6 +162,8 @@ Additional native-only variables should be added where needed:
 
 - `CONVERTER_CONFIG_PATH=<path-to-native-config.toml>`
 - `CONVERTER_ENV_PATH=<optional-path-to-env-file>` if a simple env-file loader is added later
+- `CONVERTER_PATH_MAP_FROM=/Media`
+- `CONVERTER_PATH_MAP_TO=/Volumes/Media`
 
 ## Configuration Design
 
@@ -205,6 +209,10 @@ x265_preset = "medium"
 
 [runtime]
 log_directory = "/Users/steve/Library/Logs/convert-to-h265"
+
+[path_map]
+from = "/Media"
+to = "/Volumes/Media"
 ```
 
 This keeps a single model while allowing Docker and native config files to differ.
@@ -284,17 +292,17 @@ The source file paths written by the walker must resolve correctly on the Mac Mi
 
 This is critical.
 
-If the NAS walker writes filenames like `/volume2/Media/...` and the Mac cannot resolve that same path, the converter will not work. The current converter expects that `Path(self._file_data.filename)` exists locally.
+In this deployment, filenames are stored in MongoDB using the Docker convention rooted at `/Media/...`. The native Mac installation is expected to access the same files through `/Volumes/Media/...`.
 
-Therefore one of these conditions must hold:
+That means path mapping is required by design, not as an optional compatibility fallback.
 
-1. The walker writes file paths that are also valid on the Mac.
-2. A path translation layer is added.
+If the database contains `/Media/Films/example.mkv`, the native Mac converter must resolve that to `/Volumes/Media/Films/example.mkv` before checking file existence or copying the file into the local work directory.
 
-Recommended initial approach:
+Required behavior:
 
-- Standardize the path written into MongoDB so both the walker and the Mac see the same logical media root.
-- If that is not already true, add a configurable path-mapping step in the converter.
+1. Treat `/Media` as the canonical database path prefix written by the Docker walker.
+2. Translate `/Media/...` to `/Volumes/Media/...` on the Mac before accessing the filesystem.
+3. Keep the mapping configurable in case the Mac mount point changes later.
 
 Example mapping model:
 
@@ -304,7 +312,7 @@ from = "/Media"
 to = "/Volumes/Media"
 ```
 
-This is one of the highest-risk parts of the native design because the queue currently stores absolute filenames.
+This is a required part of the native design because the queue currently stores absolute Docker-style filenames.
 
 ### Conversion Working Directory
 
@@ -349,9 +357,26 @@ Recommended files:
 
 - `scripts/macos/run_converter.sh`
 - `scripts/macos/install_converter_service.sh`
+- `scripts/macos/uninstall_converter_service.sh`
+- `scripts/macos/start_converter`
+- `scripts/macos/stop_converter`
+- `scripts/macos/restart_converter`
+- `scripts/macos/status_converter`
 - `scripts/macos/templates/com.schleising.convert-to-h265.converter.plist`
 
 The exact file names can vary, but the separation of concerns should remain.
+
+In addition to living in the repo, the service control scripts should be installed into a directory already on the user's `PATH`, or into a managed directory that the installer adds to the user's shell path.
+
+Preferred outcome:
+
+- `start_converter`
+- `stop_converter`
+- `restart_converter`
+- `status_converter`
+- `uninstall_converter`
+
+should be runnable directly from the command line.
 
 ### Launcher Script Responsibilities
 
@@ -362,8 +387,9 @@ The launcher script should:
 3. Set `PATH` so `ffmpeg` can be found under Homebrew.
 4. Set required environment variables.
 5. Set the config override path.
-6. Create log and working directories if needed.
-7. Execute the Python entry point from the repo root.
+6. Set path-mapping environment or ensure mapping config is available.
+7. Create log and working directories if needed.
+8. Execute the Python entry point from the repo root.
 
 The launcher script is preferable to embedding a large environment block directly in the plist.
 
@@ -390,8 +416,9 @@ Responsibilities:
 3. Validate `ffmpeg` supports `hevc_videotoolbox`.
 4. Create required local directories.
 5. Install or update the plist in the correct launchd location.
-6. Reload the launchd job safely.
-7. Print useful status and next steps.
+6. Install service control scripts into a convenient location on `PATH`.
+7. Reload the launchd job safely.
+8. Print useful status and next steps.
 
 The script should be idempotent.
 
@@ -400,6 +427,48 @@ That means rerunning it should:
 - overwrite or refresh existing service files safely
 - avoid creating duplicate jobs
 - preserve user-provided config where appropriate
+- preserve or safely refresh command-line control scripts
+
+### Uninstall Script Responsibilities
+
+The uninstall script should be the inverse of the install script for the native Mac converter.
+
+Responsibilities:
+
+1. Stop and unload the launchd job safely.
+2. Remove the installed plist.
+3. Remove installed service control scripts.
+4. Optionally remove generated logs, working directories, and application-support files after confirmation.
+5. Leave the repository checkout untouched unless explicitly asked to remove local generated files inside it.
+
+The uninstall flow should default to safe behavior:
+
+- remove installed service assets
+- preserve config and logs unless the user explicitly requests full cleanup
+
+This avoids accidental loss of useful diagnostics or local configuration.
+
+### Service Control Script Responsibilities
+
+The command-line helper scripts should wrap `launchctl` so the service can be managed without remembering plist labels or launchctl syntax.
+
+Required commands:
+
+1. `start_converter`
+2. `stop_converter`
+3. `restart_converter`
+4. `status_converter`
+5. `uninstall_converter`
+
+Expected behavior:
+
+- `start_converter` loads or kicks off the launchd job
+- `stop_converter` stops or unloads it cleanly
+- `restart_converter` performs a safe stop and start sequence
+- `status_converter` shows whether the service is loaded and, if practical, where logs are written
+- `uninstall_converter` calls the uninstall workflow
+
+These scripts should be thin wrappers around the installed launchd label and local file locations.
 
 ### Suggested Install Behavior
 
@@ -413,8 +482,9 @@ Suggested install flow:
 6. Create application support directory.
 7. Create logs directory.
 8. Create working directory.
-9. Copy or template the plist.
-10. Bootstrap or restart the launchd job.
+9. Install start, stop, restart, status, and uninstall helper scripts.
+10. Copy or template the plist.
+11. Bootstrap or restart the launchd job.
 
 ### Suggested macOS Paths
 
@@ -424,6 +494,7 @@ Example locations:
 - logs: `~/Library/Logs/convert-to-h265/`
 - config: `~/Library/Application Support/convert-to-h265/config.toml`
 - work dir: `~/Movies/convert-to-h265-work/`
+- helper scripts: `/usr/local/bin/` or another installer-managed directory on `PATH`
 
 These are defaults, not hard requirements.
 
@@ -438,6 +509,7 @@ Required changes:
 - parse TOML
 - support config override path
 - extend schema for encoding/runtime settings
+- extend schema for path mapping
 - avoid Docker-only hardcoded paths
 
 ### 2. Converter Encoder Selection
@@ -458,7 +530,7 @@ File: [src/converter/converter.py](../src/converter/converter.py)
 
 Potential changes:
 
-- add configurable path mapping if NAS-written absolute paths do not resolve on the Mac
+- add required configurable path mapping from `/Media` to `/Volumes/Media` for the native Mac runtime
 - normalize temp and output path generation through config
 
 ### 4. Secret Resolution
@@ -479,6 +551,11 @@ New files:
 
 - launcher shell script
 - installer shell script
+- uninstall shell script
+- start script
+- stop script
+- restart script
+- status script
 - plist template
 
 ### 6. Documentation
@@ -490,6 +567,8 @@ Required changes:
 - describe split deployment model
 - describe Mac prerequisites
 - describe install script usage
+- describe uninstall script usage
+- describe start, stop, restart, and status helper usage
 - describe service update flow
 
 ## Deployment Flow
@@ -510,8 +589,9 @@ Expected flow:
 3. Ensure ffmpeg with VideoToolbox support exists.
 4. Prepare native config.
 5. Run installer script.
-6. launchd starts or reloads the converter job.
-7. Converter reconnects to MongoDB and resumes polling.
+6. Use `start_converter`, `stop_converter`, `restart_converter`, or `status_converter` as needed for operations.
+7. launchd starts or reloads the converter job.
+8. Converter reconnects to MongoDB and resumes polling.
 
 ## Failure Handling
 
@@ -538,6 +618,8 @@ Behavior today already exists:
 
 This remains acceptable, but if path mapping is needed this error becomes the signal that the mapping layer is missing or wrong.
 
+Because `/Media` to `/Volumes/Media` mapping is part of the design, this error should usually indicate a bad mapping configuration or an unavailable `/Volumes/Media` mount.
+
 ### Interrupted Conversion
 
 The current signal cleanup logic in [src/converter/converter.py](../src/converter/converter.py) should remain in place.
@@ -549,19 +631,30 @@ The launchd service should rely on that cleanup behavior when reloading or stopp
 ### Functional Verification
 
 1. Confirm walker on NAS continues updating MongoDB.
-2. Start converter manually on the Mac and confirm it claims work.
-3. Confirm staged files are created in the configured work directory.
-4. Confirm ffmpeg uses `hevc_videotoolbox`.
-5. Confirm progress updates appear in MongoDB.
-6. Confirm converted output is handled correctly.
+2. Confirm a filename stored as `/Media/...` in MongoDB resolves to `/Volumes/Media/...` on the Mac before conversion starts.
+3. Start converter manually on the Mac and confirm it claims work.
+4. Confirm staged files are created in the configured work directory.
+5. Confirm ffmpeg uses `hevc_videotoolbox`.
+6. Confirm progress updates appear in MongoDB.
+7. Confirm converted output is handled correctly.
 
 ### Service Verification
 
 1. Run installer script.
 2. Verify plist exists in launchd destination.
-3. Verify job is loaded.
-4. Reboot or reload and confirm auto-start.
-5. Confirm log files are written.
+3. Verify helper scripts are installed on `PATH`.
+4. Verify job is loaded.
+5. Use `stop_converter`, `start_converter`, `restart_converter`, and `status_converter` to confirm they manage the service correctly.
+6. Reboot or reload and confirm auto-start.
+7. Confirm log files are written.
+
+### Uninstall Verification
+
+1. Run `uninstall_converter` or the uninstall script directly.
+2. Verify the launchd job is unloaded.
+3. Verify the installed plist is removed.
+4. Verify helper scripts are removed.
+5. Verify optional retained config and logs match the requested uninstall mode.
 
 ### Regression Verification
 
@@ -571,7 +664,7 @@ The launchd service should rely on that cleanup behavior when reloading or stopp
 
 ## Open Questions
 
-1. Do the absolute file paths written by the NAS walker already resolve identically on the Mac Mini?
+1. Should the installer place helper scripts in `/usr/local/bin`, or in a user-local bin directory such as `~/bin`?
 2. Should the installer manage Python package installation, or only validate an existing virtual environment?
 3. Should the Mac service run as a LaunchAgent or a LaunchDaemon in the final deployment?
 4. Should a native fallback encoder be supported if `hevc_videotoolbox` is unavailable?
@@ -579,13 +672,14 @@ The launchd service should rely on that cleanup behavior when reloading or stopp
 ## Recommended Implementation Order
 
 1. Fix config loading.
-2. Add encoder profile support.
-3. Normalize secret and path resolution.
-4. Add launcher script.
-5. Add plist template.
-6. Add installer script.
-7. Update documentation.
-8. Test end to end.
+2. Add required `/Media` to `/Volumes/Media` path mapping.
+3. Add encoder profile support.
+4. Normalize secret resolution.
+5. Add launcher script.
+6. Add plist template.
+7. Add installer, uninstall, and service control scripts.
+8. Update documentation.
+9. Test end to end.
 
 ## Summary
 
@@ -594,8 +688,9 @@ The existing architecture is already close to what is needed. The NAS walker can
 The main work is not in queue logic. It is in deployment correctness:
 
 - configuration must become real instead of Docker-hardcoded
+- Docker-style `/Media/...` database paths must be translated to `/Volumes/Media/...` on macOS
 - encoder selection must support `hevc_videotoolbox`
 - file paths and secrets must stop assuming container layout
-- a proper macOS launcher, plist, and installer must be added
+- a proper macOS launcher, plist, installer, uninstaller, and service-control scripts must be added
 
 If those pieces are implemented cleanly, the converter will behave the same way it does today from a scheduling and database perspective, but will run natively on macOS and use hardware-assisted HEVC encoding.
