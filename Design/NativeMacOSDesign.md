@@ -202,8 +202,9 @@ end_conversion_time = 23:59:00
 [encoding]
 video_codec = "hevc_videotoolbox"
 quality_mode = "native"
-vt_bitrate = 6000
-vt_realtime = false
+vt_qv = 45
+vt_qv_small_height = 50
+vt_small_height_threshold = 600
 x265_crf = 28
 x265_preset = "medium"
 
@@ -267,11 +268,19 @@ Use current x265 behavior:
 Use VideoToolbox behavior:
 
 - `c:v=hevc_videotoolbox`
-- Use bitrate or other supported VideoToolbox settings instead of x265 CRF/preset flags
+- Use `-q:v 45` for the default native quality target
+- Use `-q:v 50` when video height is less than or equal to 600 pixels
 - Keep audio copy behavior
 - Keep subtitle handling behavior
 
 The implementation should not pass incompatible options to the selected encoder.
+
+The native profile should preserve the same quality-selection intent as the current x265 path:
+
+- videos taller than 600 pixels use `-q:v 45`
+- videos with height less than or equal to 600 pixels use `-q:v 50`
+
+This mirrors the current logic that uses a different quality setting for smaller videos, but expressed using the controls supported by `hevc_videotoolbox`.
 
 ### Validation
 
@@ -330,10 +339,13 @@ Requirements:
 Recommended location:
 
 - a dedicated directory outside the repo, configured in the Mac config file
+- prefer a location under `/tmp` rather than `~/Movies`, because `~/Movies` may not be writable or reliable for a launchd-managed task
 
 Example:
 
-- `/Users/steve/Movies/convert-to-h265-work`
+- `/tmp/Movies/convert-to-h265-work`
+
+If `/tmp/Movies/convert-to-h265-work` is not suitable in practice, the fallback should be another launchd-safe writable location such as a dedicated directory under `/private/tmp` or another installer-created writable working directory outside the repo.
 
 ### Secrets and Notification Files
 
@@ -486,6 +498,8 @@ Suggested install flow:
 10. Copy or template the plist.
 11. Bootstrap or restart the launchd job.
 
+The installer should validate that the configured working directory is writable by the launchd service user before completing installation.
+
 ### Suggested macOS Paths
 
 Example locations:
@@ -493,7 +507,7 @@ Example locations:
 - plist: `~/Library/LaunchAgents/com.schleising.convert-to-h265.converter.plist`
 - logs: `~/Library/Logs/convert-to-h265/`
 - config: `~/Library/Application Support/convert-to-h265/config.toml`
-- work dir: `~/Movies/convert-to-h265-work/`
+- work dir: `/tmp/Movies/convert-to-h265-work/`
 - helper scripts: `/usr/local/bin/` or another installer-managed directory on `PATH`
 
 These are defaults, not hard requirements.
@@ -522,6 +536,7 @@ Required changes:
 - select encoder profile from config
 - keep existing audio/subtitle behavior
 - log selected encoder profile
+- apply `-q:v 45` for normal-height videos and `-q:v 50` for videos with height less than or equal to 600 pixels when using `hevc_videotoolbox`
 - avoid passing x265-only flags to VideoToolbox
 
 ### 3. Path Resolution
@@ -633,10 +648,11 @@ The launchd service should rely on that cleanup behavior when reloading or stopp
 1. Confirm walker on NAS continues updating MongoDB.
 2. Confirm a filename stored as `/Media/...` in MongoDB resolves to `/Volumes/Media/...` on the Mac before conversion starts.
 3. Start converter manually on the Mac and confirm it claims work.
-4. Confirm staged files are created in the configured work directory.
+4. Confirm staged files are created in `/tmp/Movies/convert-to-h265-work/` or the configured fallback writable work directory.
 5. Confirm ffmpeg uses `hevc_videotoolbox`.
-6. Confirm progress updates appear in MongoDB.
-7. Confirm converted output is handled correctly.
+6. Confirm videos taller than 600 pixels use `-q:v 45` and videos with height less than or equal to 600 pixels use `-q:v 50`.
+7. Confirm progress updates appear in MongoDB.
+8. Confirm converted output is handled correctly.
 
 ### Service Verification
 
@@ -690,6 +706,8 @@ The main work is not in queue logic. It is in deployment correctness:
 - configuration must become real instead of Docker-hardcoded
 - Docker-style `/Media/...` database paths must be translated to `/Volumes/Media/...` on macOS
 - encoder selection must support `hevc_videotoolbox`
+- the native working directory must use a launchd-safe writable location such as `/tmp/Movies/convert-to-h265-work`
+- the native VideoToolbox profile must use `-q:v 45`, or `-q:v 50` for videos with height less than or equal to 600 pixels
 - file paths and secrets must stop assuming container layout
 - a proper macOS launcher, plist, installer, uninstaller, and service-control scripts must be added
 
