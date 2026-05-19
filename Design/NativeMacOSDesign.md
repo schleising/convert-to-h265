@@ -1,0 +1,601 @@
+# Native macOS Converter Design
+
+## Overview
+
+This document describes the design for running the converter natively on a Mac Mini while keeping the walker running in Docker on the NAS.
+
+The core requirement is to preserve the current queue-based behavior:
+
+- The walker continues scanning media folders on the NAS and writing file metadata into MongoDB.
+- The Mac Mini runs only the converter logic.
+- The converter starts automatically at startup or login.
+- The converter continuously watches MongoDB for new work in the same way the current Docker backend does.
+- The converter uses native macOS ffmpeg with `hevc_videotoolbox` instead of Docker `libx265`.
+
+This design is intentionally additive. Docker support for the existing NAS walker remains intact.
+
+## Current State
+
+The current application already has most of the scheduling and queue orchestration needed for a native service.
+
+### Existing Entry Point
+
+The shared entry point is [src/main.py](../src/main.py), which constructs `TaskScheduler` and calls `run()`.
+
+### Existing Scheduler
+
+The runtime loop is in [src/converter/task_scheduler.py](../src/converter/task_scheduler.py).
+
+Behavior today:
+
+- If `FOLDER_WALKER=TRUE`, the process walks folders and refreshes codec metadata.
+- If `FOLDER_WALKER` is not `TRUE`, the process behaves as a converter backend.
+- The loop runs continuously with a one second sleep.
+- The converter only processes files within the configured conversion window.
+
+### Existing Queue and Coordination
+
+MongoDB is already the shared coordination layer.
+
+Behavior today:
+
+- The walker writes discovered files and codec information into MongoDB.
+- The converter atomically claims one pending file by setting `converting=True`.
+- Progress, speed, and completion state are written back to MongoDB.
+- This model already supports multiple producers and consumers without a redesign.
+
+### Existing Problem Areas
+
+The codebase has several assumptions that are acceptable in Docker but need to be corrected for a native macOS service.
+
+1. [src/converter/config.py](../src/converter/config.py) does not actually parse [src/config.toml](../src/config.toml). It opens the file but then constructs hardcoded values such as `/Media` and `/Conversions`.
+2. [src/converter/converter.py](../src/converter/converter.py) hardcodes `libx265` in the ffmpeg command.
+3. Notification secret paths are partly hardcoded as `/src/secrets/...`, which is Docker-specific.
+4. There is no native launchd service definition, launcher script, or installer.
+5. There is no native configuration override path for a Mac-specific deployment.
+
+## Target Architecture
+
+The target deployment model is split by role.
+
+### NAS
+
+The NAS keeps the current Docker walker deployment.
+
+Responsibilities:
+
+- Mount and access the media storage directly.
+- Run the walker container with `FOLDER_WALKER=TRUE`.
+- Scan folders and update MongoDB.
+
+### Mac Mini
+
+The Mac Mini runs the converter natively.
+
+Responsibilities:
+
+- Start automatically using launchd.
+- Run the same Python entry point with `FOLDER_WALKER=FALSE`.
+- Poll MongoDB for work.
+- Copy source files to a local working directory.
+- Run ffmpeg using `hevc_videotoolbox`.
+- Write progress and final status back to MongoDB.
+
+### Shared Components
+
+Shared across both NAS and Mac:
+
+- MongoDB database and collections.
+- `FileData` schema and queue semantics.
+- `TaskScheduler` role gating.
+- Conversion schedule logic.
+
+## Design Goals
+
+1. Preserve the walker behavior on the NAS.
+2. Preserve the MongoDB queue contract.
+3. Avoid a queue redesign.
+4. Make the native converter deployment reproducible.
+5. Make the macOS install idempotent.
+6. Keep Docker and native runtime configuration separate where necessary.
+7. Add macOS hardware encoding without breaking Linux Docker behavior.
+
+## Non-Goals
+
+1. Replacing MongoDB.
+2. Rewriting the scheduler model.
+3. Moving walker responsibilities onto the Mac.
+4. Automating NAS share mounting from the Mac installer.
+5. Creating native service assets for the walker.
+
+## Runtime Design
+
+### Process Model
+
+Only one native macOS background job is required for this design.
+
+- Job name: converter service
+- Role: converter only
+- Environment: `FOLDER_WALKER=FALSE`
+
+The current role split remains valid because the NAS walker and Mac converter already coordinate through MongoDB.
+
+### Startup Model
+
+The converter should be installed as a launchd job.
+
+Recommended default:
+
+- Use a `LaunchAgent` if the relevant paths and user environment are available after user login.
+
+Possible alternative:
+
+- Use a `LaunchDaemon` only if the media paths, ffmpeg path, Python environment, and writable directories are guaranteed to exist before user login.
+
+The safer initial choice is a `LaunchAgent`, because the converter is running in a user-owned Python environment and is likely to depend on user-accessible paths.
+
+### Working Directory
+
+The launcher script must set the repository root as the working directory before starting Python.
+
+Reason:
+
+- The current code uses relative paths such as `src/config.toml` and `src/secrets/claims.json`.
+- launchd does not guarantee the same working directory as an interactive shell.
+
+### Environment Variables
+
+The native converter should continue using the same environment variables as the current backend process wherever practical.
+
+Required variables:
+
+- `FOLDER_WALKER=FALSE`
+- `BACKEND_NAME=<mac-backend-name>`
+- `DB_URL=<mongo-uri>`
+- `DB_NAME=<database-name>`
+- `DB_COLLECTION=<collection-name>`
+- `PUSH_COLLECTION=<push-collection-name>`
+
+Additional native-only variables should be added where needed:
+
+- `CONVERTER_CONFIG_PATH=<path-to-native-config.toml>`
+- `CONVERTER_ENV_PATH=<optional-path-to-env-file>` if a simple env-file loader is added later
+
+## Configuration Design
+
+### Problem
+
+The current `Config` class does not use the TOML file contents. That must change before native deployment can be reliable.
+
+### Required Changes
+
+The configuration layer should:
+
+1. Parse TOML instead of constructing hardcoded values.
+2. Support an override path via environment variable.
+3. Preserve the existing config shape where possible.
+4. Add encoder/runtime options required by the native converter.
+
+### Proposed Config Structure
+
+The existing TOML file can be extended rather than replaced.
+
+Example shape:
+
+```toml
+[folders]
+include = ["/Media/TV", "/Media/Films"]
+exclude = ["/Media/Films/VR"]
+backup = "/Media/Backup"
+conversions = "/Users/steve/Movies/Conversions"
+
+[schedule]
+timezone = "Europe/London"
+scan_time = 00:00:00
+start_conversion_time = 00:05:00
+end_conversion_time = 23:59:00
+
+[encoding]
+video_codec = "hevc_videotoolbox"
+quality_mode = "native"
+vt_bitrate = 6000
+vt_realtime = false
+x265_crf = 28
+x265_preset = "medium"
+
+[runtime]
+log_directory = "/Users/steve/Library/Logs/convert-to-h265"
+```
+
+This keeps a single model while allowing Docker and native config files to differ.
+
+### Config File Strategy
+
+Use two config files:
+
+1. Repository default config for Docker-oriented or shared defaults.
+2. Mac-specific config installed outside the repo or generated from a template.
+
+Recommended approach:
+
+- Keep [src/config.toml](../src/config.toml) as the default checked-in config.
+- Allow the Mac service to point at a separate installed config file via `CONVERTER_CONFIG_PATH`.
+
+This avoids editing repo files just to change local Mac paths.
+
+## Encoder Design
+
+### Current State
+
+The converter currently constructs ffmpeg output options with:
+
+- `c:v=libx265`
+- `crf=<value>`
+- `preset=medium`
+
+That is appropriate for software encoding but not for native VideoToolbox.
+
+### Target State
+
+The converter must support encoder profiles.
+
+Required profiles:
+
+1. `libx265`
+2. `hevc_videotoolbox`
+
+### Encoder Profile Rules
+
+#### Docker/Linux Profile
+
+Use current x265 behavior:
+
+- `c:v=libx265`
+- `crf=<configured value>`
+- `preset=<configured value>`
+
+#### macOS Native Profile
+
+Use VideoToolbox behavior:
+
+- `c:v=hevc_videotoolbox`
+- Use bitrate or other supported VideoToolbox settings instead of x265 CRF/preset flags
+- Keep audio copy behavior
+- Keep subtitle handling behavior
+
+The implementation should not pass incompatible options to the selected encoder.
+
+### Validation
+
+At startup or before first conversion, the converter should log the selected encoder and fail clearly if ffmpeg does not support it.
+
+Validation options:
+
+1. Run `ffmpeg -hide_banner -encoders` from the installer and fail early if `hevc_videotoolbox` is missing.
+2. Add startup-time validation in Python and exit with a clear log message.
+
+Doing both is preferable.
+
+## File Path Design
+
+### Source Media Paths
+
+The source file paths written by the walker must resolve correctly on the Mac Mini.
+
+This is critical.
+
+If the NAS walker writes filenames like `/volume2/Media/...` and the Mac cannot resolve that same path, the converter will not work. The current converter expects that `Path(self._file_data.filename)` exists locally.
+
+Therefore one of these conditions must hold:
+
+1. The walker writes file paths that are also valid on the Mac.
+2. A path translation layer is added.
+
+Recommended initial approach:
+
+- Standardize the path written into MongoDB so both the walker and the Mac see the same logical media root.
+- If that is not already true, add a configurable path-mapping step in the converter.
+
+Example mapping model:
+
+```toml
+[path_map]
+from = "/Media"
+to = "/Volumes/Media"
+```
+
+This is one of the highest-risk parts of the native design because the queue currently stores absolute filenames.
+
+### Conversion Working Directory
+
+The native converter still needs a local staging directory for:
+
+- temporary copied input file
+- temporary encoded output file
+
+Requirements:
+
+- writable by the launchd job user
+- enough free disk space for large video files
+- stable path across restarts
+
+Recommended location:
+
+- a dedicated directory outside the repo, configured in the Mac config file
+
+Example:
+
+- `/Users/steve/Movies/convert-to-h265-work`
+
+### Secrets and Notification Files
+
+Current code mixes repo-relative and Docker-absolute secret paths.
+
+That should be normalized.
+
+Required behavior:
+
+1. Resolve secrets relative to a configured secrets directory.
+2. Stop assuming `/src/secrets` exists.
+3. Allow the launcher or config to specify the secrets location.
+
+## launchd Design
+
+### Assets to Add
+
+The repo should add macOS-specific assets for the converter only.
+
+Recommended files:
+
+- `scripts/macos/run_converter.sh`
+- `scripts/macos/install_converter_service.sh`
+- `scripts/macos/templates/com.schleising.convert-to-h265.converter.plist`
+
+The exact file names can vary, but the separation of concerns should remain.
+
+### Launcher Script Responsibilities
+
+The launcher script should:
+
+1. Resolve the repo root.
+2. Activate or invoke the correct Python environment.
+3. Set `PATH` so `ffmpeg` can be found under Homebrew.
+4. Set required environment variables.
+5. Set the config override path.
+6. Create log and working directories if needed.
+7. Execute the Python entry point from the repo root.
+
+The launcher script is preferable to embedding a large environment block directly in the plist.
+
+### Plist Responsibilities
+
+The plist should:
+
+1. Invoke the launcher script.
+2. Use `RunAtLoad=true`.
+3. Use `KeepAlive=true`.
+4. Write stdout and stderr to predictable log files.
+5. Use a stable label such as `com.schleising.convert-to-h265.converter`.
+
+The plist should remain small and declarative.
+
+### Install Script Responsibilities
+
+The install script should be the supported setup mechanism for the Mac converter.
+
+Responsibilities:
+
+1. Validate the platform is macOS.
+2. Validate required tools exist, especially Python and ffmpeg.
+3. Validate `ffmpeg` supports `hevc_videotoolbox`.
+4. Create required local directories.
+5. Install or update the plist in the correct launchd location.
+6. Reload the launchd job safely.
+7. Print useful status and next steps.
+
+The script should be idempotent.
+
+That means rerunning it should:
+
+- overwrite or refresh existing service files safely
+- avoid creating duplicate jobs
+- preserve user-provided config where appropriate
+
+### Suggested Install Behavior
+
+Suggested install flow:
+
+1. Determine repo root.
+2. Determine install target paths.
+3. Check for `.venv` or configured Python path.
+4. Check `ffmpeg` availability.
+5. Check `hevc_videotoolbox` availability.
+6. Create application support directory.
+7. Create logs directory.
+8. Create working directory.
+9. Copy or template the plist.
+10. Bootstrap or restart the launchd job.
+
+### Suggested macOS Paths
+
+Example locations:
+
+- plist: `~/Library/LaunchAgents/com.schleising.convert-to-h265.converter.plist`
+- logs: `~/Library/Logs/convert-to-h265/`
+- config: `~/Library/Application Support/convert-to-h265/config.toml`
+- work dir: `~/Movies/convert-to-h265-work/`
+
+These are defaults, not hard requirements.
+
+## Code Changes Required
+
+### 1. Config Loader
+
+File: [src/converter/config.py](../src/converter/config.py)
+
+Required changes:
+
+- parse TOML
+- support config override path
+- extend schema for encoding/runtime settings
+- avoid Docker-only hardcoded paths
+
+### 2. Converter Encoder Selection
+
+File: [src/converter/converter.py](../src/converter/converter.py)
+
+Required changes:
+
+- factor ffmpeg output settings into a helper
+- select encoder profile from config
+- keep existing audio/subtitle behavior
+- log selected encoder profile
+- avoid passing x265-only flags to VideoToolbox
+
+### 3. Path Resolution
+
+File: [src/converter/converter.py](../src/converter/converter.py)
+
+Potential changes:
+
+- add configurable path mapping if NAS-written absolute paths do not resolve on the Mac
+- normalize temp and output path generation through config
+
+### 4. Secret Resolution
+
+Files:
+
+- [src/converter/converter.py](../src/converter/converter.py)
+- possibly [src/converter/config.py](../src/converter/config.py)
+
+Required changes:
+
+- move secret file paths to config or a single resolver helper
+- remove Docker-specific `/src/...` assumptions
+
+### 5. New macOS Service Assets
+
+New files:
+
+- launcher shell script
+- installer shell script
+- plist template
+
+### 6. Documentation
+
+File: [README.md](../README.md)
+
+Required changes:
+
+- describe split deployment model
+- describe Mac prerequisites
+- describe install script usage
+- describe service update flow
+
+## Deployment Flow
+
+### NAS Deployment
+
+No change from current intent:
+
+- deploy walker in Docker on the NAS
+- keep media-local access there
+
+### Mac Deployment
+
+Expected flow:
+
+1. Pull repo updates.
+2. Ensure Python environment exists.
+3. Ensure ffmpeg with VideoToolbox support exists.
+4. Prepare native config.
+5. Run installer script.
+6. launchd starts or reloads the converter job.
+7. Converter reconnects to MongoDB and resumes polling.
+
+## Failure Handling
+
+### Missing MongoDB
+
+Behavior:
+
+- current code logs connection errors during collection operations
+- service should stay restartable and keep retrying via launchd or loop behavior
+
+### Missing Encoder Support
+
+Behavior:
+
+- installer should fail
+- runtime should log and exit clearly rather than failing mid-conversion later
+
+### Missing Source File
+
+Behavior today already exists:
+
+- converter logs that the file does not exist
+- clears `converting`
+
+This remains acceptable, but if path mapping is needed this error becomes the signal that the mapping layer is missing or wrong.
+
+### Interrupted Conversion
+
+The current signal cleanup logic in [src/converter/converter.py](../src/converter/converter.py) should remain in place.
+
+The launchd service should rely on that cleanup behavior when reloading or stopping the job.
+
+## Testing and Verification Plan
+
+### Functional Verification
+
+1. Confirm walker on NAS continues updating MongoDB.
+2. Start converter manually on the Mac and confirm it claims work.
+3. Confirm staged files are created in the configured work directory.
+4. Confirm ffmpeg uses `hevc_videotoolbox`.
+5. Confirm progress updates appear in MongoDB.
+6. Confirm converted output is handled correctly.
+
+### Service Verification
+
+1. Run installer script.
+2. Verify plist exists in launchd destination.
+3. Verify job is loaded.
+4. Reboot or reload and confirm auto-start.
+5. Confirm log files are written.
+
+### Regression Verification
+
+1. Confirm Docker walker still works unchanged.
+2. Confirm Docker converter path can still use `libx265` if retained for testing or fallback.
+3. Confirm notification handling still works if configured.
+
+## Open Questions
+
+1. Do the absolute file paths written by the NAS walker already resolve identically on the Mac Mini?
+2. Should the installer manage Python package installation, or only validate an existing virtual environment?
+3. Should the Mac service run as a LaunchAgent or a LaunchDaemon in the final deployment?
+4. Should a native fallback encoder be supported if `hevc_videotoolbox` is unavailable?
+
+## Recommended Implementation Order
+
+1. Fix config loading.
+2. Add encoder profile support.
+3. Normalize secret and path resolution.
+4. Add launcher script.
+5. Add plist template.
+6. Add installer script.
+7. Update documentation.
+8. Test end to end.
+
+## Summary
+
+The existing architecture is already close to what is needed. The NAS walker can remain unchanged in Docker, while the Mac Mini runs only the converter as a native launchd-managed service.
+
+The main work is not in queue logic. It is in deployment correctness:
+
+- configuration must become real instead of Docker-hardcoded
+- encoder selection must support `hevc_videotoolbox`
+- file paths and secrets must stop assuming container layout
+- a proper macOS launcher, plist, and installer must be added
+
+If those pieces are implemented cleanly, the converter will behave the same way it does today from a scheduling and database perspective, but will run natively on macOS and use hardware-assisted HEVC encoding.
