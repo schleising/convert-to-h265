@@ -268,13 +268,16 @@ Use current x265 behavior:
 Use VideoToolbox behavior:
 
 - `c:v=hevc_videotoolbox`
-- Use `-q:v 50` for the native quality target
+- Use `-q:v 55`
+- Use `-g 240`
+- Use `-keyint_min 240`
+- Use `-realtime 0`
 - Keep audio copy behavior
 - Keep subtitle handling behavior
 
 The implementation should not pass incompatible options to the selected encoder.
 
-The native profile should use a consistent `-q:v 50` target.
+The native profile should use a consistent `-q:v 55 -g 240 -keyint_min 240 -realtime 0` target.
 
 ### Validation
 
@@ -530,7 +533,7 @@ Required changes:
 - select encoder profile from config
 - keep existing audio/subtitle behavior
 - log selected encoder profile
-- apply `-q:v 50` when using `hevc_videotoolbox`
+- apply `-q:v 55 -g 240 -keyint_min 240 -realtime 0` when using `hevc_videotoolbox`
 - avoid passing x265-only flags to VideoToolbox
 
 ### 3. Path Resolution
@@ -644,7 +647,7 @@ The launchd service should rely on that cleanup behavior when reloading or stopp
 3. Start converter manually on the Mac and confirm it claims work.
 4. Confirm staged files are created in `/tmp/Movies/convert-to-h265-work/` or the configured fallback writable work directory.
 5. Confirm ffmpeg uses `hevc_videotoolbox`.
-6. Confirm videos use `-q:v 50` with `hevc_videotoolbox`.
+6. Confirm videos use `-q:v 55 -g 240 -keyint_min 240 -realtime 0` with `hevc_videotoolbox`.
 7. Confirm progress updates appear in MongoDB.
 8. Confirm converted output is handled correctly.
 
@@ -701,7 +704,7 @@ The main work is not in queue logic. It is in deployment correctness:
 - Docker-style `/Media/...` database paths must be translated to `/Volumes/Media/...` on macOS
 - encoder selection must support `hevc_videotoolbox`
 - the native working directory must use a launchd-safe writable location such as `/tmp/Movies/convert-to-h265-work`
-- the native VideoToolbox profile must use `-q:v 50`
+- the native VideoToolbox profile must use `-q:v 55 -g 240 -keyint_min 240 -realtime 0`
 - file paths and secrets must stop assuming container layout
 - a proper macOS launcher, plist, installer, uninstaller, and service-control scripts must be added
 

@@ -94,9 +94,24 @@ migrate_existing_config() {
     local new_secrets_dir
     new_secrets_dir="$APP_SUPPORT_DIR/runtime/src/secrets"
 
-    if grep -Eq '^vt_qv = 45$' "$config_path"; then
-        /usr/bin/sed -i '' 's/^vt_qv = 45$/vt_qv = 50/' "$config_path"
-        echo "Updated vt_qv to 50 in $config_path"
+    if grep -Eq '^vt_qv = (45|50)$' "$config_path"; then
+        /usr/bin/sed -i '' -E 's/^vt_qv = (45|50)$/vt_qv = 55/' "$config_path"
+        echo "Updated vt_qv to 55 in $config_path"
+    fi
+
+    if grep -Eq '^vt_qv_small_height = (45|50)$' "$config_path"; then
+        /usr/bin/sed -i '' -E 's/^vt_qv_small_height = (45|50)$/vt_qv_small_height = 55/' "$config_path"
+        echo "Updated vt_qv_small_height to 55 in $config_path"
+    fi
+
+    if ! grep -Eq '^vt_g = ' "$config_path"; then
+        printf '\nvt_g = 240\nvt_keyint_min = 240\nvt_realtime = 0\n' >> "$config_path"
+        echo "Added VideoToolbox GOP settings to $config_path"
+    else
+        /usr/bin/sed -i '' -E 's/^vt_g = .*/vt_g = 240/' "$config_path"
+        /usr/bin/sed -i '' -E 's/^vt_keyint_min = .*/vt_keyint_min = 240/' "$config_path"
+        /usr/bin/sed -i '' -E 's/^vt_realtime = .*/vt_realtime = 0/' "$config_path"
+        echo "Updated VideoToolbox GOP settings in $config_path"
     fi
 
     if grep -Fq "secrets_dir = \"$old_secrets_dir\"" "$config_path"; then

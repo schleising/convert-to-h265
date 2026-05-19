@@ -130,6 +130,9 @@ class Converter:
                 else encoding.vt_qv
             )
             options["q:v"] = str(qv)
+            options["g"] = str(encoding.vt_g)
+            options["keyint_min"] = str(encoding.vt_keyint_min)
+            options["realtime"] = str(encoding.vt_realtime)
         else:
             raise RuntimeError(f"Unsupported video codec '{video_codec}'")
 
