@@ -1,0 +1,48 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_SOURCE" ]; do
+    SOURCE_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+    SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+    case "$SCRIPT_SOURCE" in
+        /*) ;;
+        *) SCRIPT_SOURCE="$SOURCE_DIR/$SCRIPT_SOURCE" ;;
+    esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
+load_install_state
+
+purge_data="false"
+if [ "${1:-}" = "--purge" ]; then
+    purge_data="true"
+fi
+
+if service_is_loaded; then
+    launchctl bootout "$(launchctl_domain)" "$PLIST_DEST"
+fi
+
+rm -f "$PLIST_DEST"
+
+for helper_script in start_converter stop_converter restart_converter status_converter uninstall_converter; do
+    rm -f "$BIN_DIR/$helper_script"
+done
+
+rm -rf "$INSTALLED_SCRIPTS_DIR" "$RUNTIME_ROOT"
+
+remove_zsh_path_block "$ZSHRC_PATH"
+
+if [ "$purge_data" = "true" ]; then
+    rm -f "$ENV_DEST" "$CONFIG_DEST" "$INSTALL_STATE_PATH"
+    rm -rf "$LOG_DIR" "$WORK_DIR"
+    rmdir "$APP_SUPPORT_DIR" 2>/dev/null || true
+    echo "Removed converter service assets and local data."
+else
+    rm -f "$INSTALL_STATE_PATH"
+    echo "Removed converter service assets."
+    echo "Preserved config, environment, logs, and working directory."
+    echo "Run uninstall_converter --purge to remove local data as well."
+fi

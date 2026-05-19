@@ -30,3 +30,23 @@
 
     # The time to stop running the conversion process
     end_conversion_time = 23:59:00
+
+# Encoding settings
+[encoding]
+    video_codec = "libx265"
+    small_height_threshold = 600
+    x265_crf = 28
+    x265_crf_small_height = 23
+    x265_preset = "medium"
+    vt_qv = 45
+    vt_qv_small_height = 50
+
+# Runtime settings
+[runtime]
+    log_directory = "/tmp/convert-to-h265/logs"
+    secrets_dir = "src/secrets"
+
+# Path mapping settings
+[path_map]
+    from = "/Media"
+    to = "/Media"

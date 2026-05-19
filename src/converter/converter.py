@@ -3,9 +3,11 @@ import json
 from pathlib import Path
 import logging
 import signal
+import subprocess
 import sys
 import shutil
 import os
+from typing import Any
 
 from pymongo import DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout, AutoReconnect
@@ -22,6 +24,8 @@ from . import media_collection, push_collection, config, NOTIFICATION_TTL
 
 
 class Converter:
+    _validated_encoders: set[str] = set()
+
     def __init__(self):
         # Create ffmpeg object and set it to None
         self._ffmpeg: FFmpeg | None = None
@@ -39,6 +43,100 @@ class Converter:
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _resolve_source_path(self, filename: str) -> Path:
+        source_path = Path(filename)
+        source_root = config.config_data.path_map.source
+        destination_root = config.config_data.path_map.destination
+
+        try:
+            relative_path = source_path.relative_to(source_root)
+        except ValueError:
+            return source_path
+
+        return destination_root / relative_path
+
+    def _get_first_video_height(self) -> int | None:
+        if self._file_data is None:
+            return None
+
+        first_video_stream = self._file_data.first_video_stream
+        if first_video_stream is None:
+            return None
+
+        return self._file_data.video_information.streams[first_video_stream].height
+
+    def _get_subtitle_codec(self) -> str:
+        if self._file_data is None or self._file_data.subtitle_streams == 0:
+            return "copy"
+
+        if any(
+            stream.codec_name == "mov_text"
+            for stream in self._file_data.video_information.streams
+            if stream.codec_type == "subtitle"
+        ):
+            return "srt"
+
+        return "copy"
+
+    def _ensure_encoder_available(self, video_codec: str) -> None:
+        if video_codec in self._validated_encoders:
+            return
+
+        ffmpeg_path = shutil.which("ffmpeg")
+        if ffmpeg_path is None:
+            raise RuntimeError("ffmpeg is not installed or not on PATH")
+
+        encoder_list = subprocess.run(
+            [ffmpeg_path, "-hide_banner", "-encoders"],
+            check=True,
+            capture_output=True,
+            text=True,
+            errors="ignore",
+        )
+
+        if video_codec not in encoder_list.stdout:
+            raise RuntimeError(f"ffmpeg encoder '{video_codec}' is not available")
+
+        logging.info(f"Using video encoder {video_codec}")
+        self._validated_encoders.add(video_codec)
+
+    def _build_output_options(self, subtitle_codec: str) -> dict[str, Any]:
+        encoding = config.config_data.encoding
+        video_codec = encoding.video_codec
+        video_height = self._get_first_video_height()
+        use_small_height_profile = (
+            video_height is not None and video_height <= encoding.small_height_threshold
+        )
+
+        options = {
+            "c:v": video_codec,
+            "c:a": "copy",
+            "c:s": subtitle_codec,
+        }
+
+        if video_codec == "libx265":
+            crf = (
+                encoding.x265_crf_small_height
+                if use_small_height_profile
+                else encoding.x265_crf
+            )
+            options["crf"] = str(crf)
+            options["preset"] = encoding.x265_preset
+        elif video_codec == "hevc_videotoolbox":
+            qv = (
+                encoding.vt_qv_small_height
+                if use_small_height_profile
+                else encoding.vt_qv
+            )
+            options["q:v"] = str(qv)
+        else:
+            raise RuntimeError(f"Unsupported video codec '{video_codec}'")
+
+        return options
+
+    def _get_secrets_path(self, filename: str) -> Path:
+        return config.config_data.runtime.secrets_dir / filename
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -184,14 +282,19 @@ class Converter:
         self._file_data = self._get_highest_bit_rate()
 
         if self._file_data is not None:
-            # Turn the filename into a path
-            input_file_path = Path(self._file_data.filename)
+            # Map the stored Docker path to the local filesystem path when needed
+            input_file_path = self._resolve_source_path(self._file_data.filename)
+
+            if input_file_path != Path(self._file_data.filename):
+                logging.info(
+                    f"Mapped source path {self._file_data.filename} to {input_file_path}"
+                )
 
             # Check if the file exists
             if not input_file_path.exists():
                 # Log that the file does not exist
                 logging.error(
-                    f"{input_file_path} does not exist, you probably need to mount the folder containing it."
+                    f"{input_file_path} does not exist, you probably need to mount the folder containing it or check the path mapping."
                 )
 
                 # Indicate in the db that this file is not converting anymore
@@ -267,6 +370,9 @@ class Converter:
             filename = input_file_path.stem
             extension = input_file_path.suffix
 
+            # Ensure the conversion staging directory exists before copying
+            config.config_data.folders.conversions.mkdir(parents=True, exist_ok=True)
+
             # Create temporary input and output paths
             self._temporary_input_path = Path(
                 config.config_data.folders.conversions, filename + extension
@@ -326,20 +432,11 @@ class Converter:
 
                 return
 
-            # Set the crf value based on the video height in pixels, 28 is the default, 23 is for videos with a height of 600 pixels or less
-            crf = 28
-            first_video_stream = self._file_data.first_video_stream
-            if first_video_stream is not None:
-                height = self._file_data.video_information.streams[
-                    first_video_stream
-                ].height
-                if height is not None and height <= 600:
-                    crf = 23
-
             # Set the subtitles to copy by default
-            subtitle_codec = "copy"
+            subtitle_codec = self._get_subtitle_codec()
 
             mapping: list[str] = []
+            first_video_stream = self._file_data.first_video_stream
 
             # Build map list
             if self._file_data.video_streams > 0:
@@ -351,13 +448,14 @@ class Converter:
             if self._file_data.subtitle_streams > 0:
                 mapping.append("0:s")
 
-                # If any subtitle stream is mov_text convert it to srt
-                if any(
-                    stream.codec_name == "mov_text"
-                    for stream in self._file_data.video_information.streams
-                    if stream.codec_type == "subtitle"
-                ):
-                    subtitle_codec = "srt"
+            output_options = self._build_output_options(subtitle_codec)
+
+            try:
+                self._ensure_encoder_available(output_options["c:v"])
+            except (RuntimeError, subprocess.CalledProcessError) as e:
+                logging.error(e)
+                self._cleanup_and_terminate(conversion_failed=True)
+                return
 
             # Convert the file
             self._ffmpeg = (
@@ -365,13 +463,7 @@ class Converter:
                 .input(self._temporary_input_path)
                 .output(
                     self._temporary_output_path,
-                    {
-                        "c:v": "libx265",
-                        "c:a": "copy",
-                        "c:s": subtitle_codec,
-                        "crf": crf,
-                        "preset": "medium",
-                    },
+                    output_options,
                     map=mapping,
                 )
             )
@@ -539,6 +631,8 @@ class Converter:
                 self._backup_path = Path(
                     config.config_data.folders.backup, self._temporary_input_path.name
                 )
+
+                self._backup_path.parent.mkdir(parents=True, exist_ok=True)
 
                 try:
                     # Log that we are hardlinking the input file to the backup folder
@@ -818,15 +912,18 @@ class Converter:
             subscriptions = push_collection.find()
 
             # Load the claims
+            claims_path = self._get_secrets_path("claims.json")
+            private_key_path = self._get_secrets_path("private_key.pem")
+
             try:
-                with open("src/secrets/claims.json", "r") as file:
+                with claims_path.open("r") as file:
                     claims = json.load(file)
             except FileNotFoundError:
                 logging.error("Could not find claims.json")
                 return
 
             # Check the private key exists
-            if not Path("/src/secrets/private_key.pem").exists():
+            if not private_key_path.exists():
                 logging.error("Could not find private_key.pem")
                 return
 
@@ -849,7 +946,7 @@ class Converter:
                         ),
                         headers={"Urgency": "normal"},
                         ttl=NOTIFICATION_TTL,
-                        vapid_private_key="/src/secrets/private_key.pem",
+                        vapid_private_key=str(private_key_path),
                         vapid_claims=claims,
                     )
                 except WebPushException as ex:

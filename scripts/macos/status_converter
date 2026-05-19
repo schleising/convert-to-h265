@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_SOURCE" ]; do
+    SOURCE_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+    SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+    case "$SCRIPT_SOURCE" in
+        /*) ;;
+        *) SCRIPT_SOURCE="$SOURCE_DIR/$SCRIPT_SOURCE" ;;
+    esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
+load_install_state
+
+if service_is_loaded; then
+    echo "Converter service is loaded."
+    echo "Plist: $PLIST_DEST"
+    echo "Logs:  $LOG_DIR"
+    launchctl print "$(launchctl_target)"
+else
+    echo "Converter service is not loaded."
+    echo "Expected plist: $PLIST_DEST"
+fi

@@ -2,9 +2,28 @@
 
 This is a simple script to convert all videos in a directory to h265 using ffmpeg.
 
-## Installation
+## Deployment
 
-1. Needs a .env file in the root directory with the following variables set:
+The project now supports a split deployment model:
+
+- Docker walker on the NAS with direct access to the media drives
+- Native macOS converter on the Mac Mini using `hevc_videotoolbox`
+
+The walker continues writing canonical Docker-style paths like `/Media/...` into MongoDB. The native converter maps those paths to `/Volumes/Media/...` before accessing the filesystem.
+
+## Shared prerequisites
+
+In order to send notifications the following files are needed in the `src/secrets` directory:
+
+- `claims.json` - Claims file
+- `private_key.pem` - Private key file
+- `public_key.pem` - Public key file
+
+## Docker walker
+
+The NAS walker continues using Docker and should keep mounting the media share at `/Media` inside the container.
+
+If you use the Docker compose files that mount SMB shares directly, create a `.env` file in the repo root with:
 
 ```
 SMB_HOST=your_smb_host
@@ -13,10 +32,60 @@ SMB_USER=your_smb_username
 SMB_PASS=your_smb_password
 ```
 
-2. In order to send notifications the following files are needed in the `src/secrets` directory:
-- `claims.json` - Claims file
-- `private_key.pem` - Private key file
-- `public_key.pem` - Public key file
+## Native macOS converter
+
+The native converter is installed with the macOS scripts in `scripts/macos`.
+
+### Native prerequisites
+
+1. Install ffmpeg with `hevc_videotoolbox` support and ensure it is on `PATH`.
+2. Create the macOS media mount at `/Volumes/Media`.
+3. Ensure the repo Python environment exists at `.venv`, or ensure `python3` is available.
+4. Keep MongoDB reachable from the Mac Mini.
+
+### Install
+
+Run:
+
+```bash
+./scripts/macos/install_converter_service.sh
+```
+
+The installer will:
+
+- create `~/Library/Application Support/convert-to-h265/config.toml` if it does not exist
+- create `~/Library/Application Support/convert-to-h265/converter.env` if it does not exist
+- create and refresh an installer-managed runtime copy under `~/Library/Application Support/convert-to-h265/runtime`
+- install the launchd plist in `~/Library/LaunchAgents`
+- install helper commands into `~/.local/bin`
+- add `~/.local/bin` to the zsh `PATH` through a managed block in `~/.zshrc`
+
+After running the installer, open a new terminal or run `source ~/.zshrc` so `start_converter` and the other helper commands are available in the current shell.
+
+The launchd service runs from the Application Support runtime copy rather than directly from the repo checkout. This avoids macOS permission failures when the repo lives under protected folders such as `Documents`.
+
+If `DB_URL` is still unset in the generated `converter.env`, the installer will stop short of starting the service. Set `DB_URL` and then run `start_converter`.
+
+### Native config defaults
+
+The generated native config uses these key defaults:
+
+- source media is accessed through `/Volumes/Media`
+- MongoDB filenames rooted at `/Media/...` are mapped to `/Volumes/Media/...`
+- temporary conversion files are staged in `/tmp/Movies/convert-to-h265-work`
+- `hevc_videotoolbox` is used with `-q:v 45`, or `-q:v 50` for videos with height less than or equal to 600 pixels
+
+### Service control
+
+After installation, the following commands are available:
+
+- `start_converter`
+- `stop_converter`
+- `restart_converter`
+- `status_converter`
+- `uninstall_converter`
+
+`uninstall_converter --purge` also removes generated config, logs, and working files.
 
 ## Flowchart for file discovery
 
