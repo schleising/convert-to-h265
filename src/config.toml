@@ -38,7 +38,7 @@
     x265_crf = 28
     x265_crf_small_height = 23
     x265_preset = "medium"
-    vt_qv = 45
+    vt_qv = 50
     vt_qv_small_height = 50
 
 # Runtime settings

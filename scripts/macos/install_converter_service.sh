@@ -87,9 +87,29 @@ render_template() {
         "$template_path" > "$destination_path"
 }
 
+migrate_existing_config() {
+    local config_path="$1"
+    local old_secrets_dir
+    old_secrets_dir="$REPO_ROOT/src/secrets"
+    local new_secrets_dir
+    new_secrets_dir="$APP_SUPPORT_DIR/runtime/src/secrets"
+
+    if grep -Eq '^vt_qv = 45$' "$config_path"; then
+        /usr/bin/sed -i '' 's/^vt_qv = 45$/vt_qv = 50/' "$config_path"
+        echo "Updated vt_qv to 50 in $config_path"
+    fi
+
+    if grep -Fq "secrets_dir = \"$old_secrets_dir\"" "$config_path"; then
+        /usr/bin/sed -i '' "s|secrets_dir = \"$old_secrets_dir\"|secrets_dir = \"$new_secrets_dir\"|" "$config_path"
+        echo "Updated secrets_dir to runtime copy in $config_path"
+    fi
+}
+
 if [ ! -f "$CONFIG_DEST" ]; then
     render_template "$SCRIPT_DIR/templates/config.macos.toml" "$CONFIG_DEST"
     echo "Created native config at $CONFIG_DEST"
+else
+    migrate_existing_config "$CONFIG_DEST"
 fi
 
 if [ ! -f "$ENV_DEST" ]; then

@@ -32,7 +32,7 @@ class Encoding(BaseModel):
     x265_crf: int = 28
     x265_crf_small_height: int = 23
     x265_preset: str = "medium"
-    vt_qv: int = 45
+    vt_qv: int = 50
     vt_qv_small_height: int = 50
 
 
