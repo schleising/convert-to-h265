@@ -346,21 +346,26 @@ class Converter:
             # Exit the application
             sys.exit(0)
 
-    # Get the db entry with the highest bit_rate (video_information.format.bit_rate)
-    # that has not been converted yet and is not currently being converted
+    # Get the highest-priority unprocessed file, preferring ones that still
+    # require conversion and then falling back to files that only need to be
+    # marked as processed.
     def _get_highest_bit_rate(self) -> FileData | None:
-        # Get the file with the highest bit rate that has not been converted yet and set converting to True in a single atomic operation
+        # Claim the next file atomically. Files requiring conversion are chosen
+        # first, then remaining unprocessed files are claimed as a fallback.
         try:
             db_file = media_collection.find_one_and_update(
                 {
-                    "conversion_required": True,
                     "converting": False,
                     "converted": False,
                     "conversion_error": False,
                     "deleted": False,
+                    "copying": False,
                 },
                 {"$set": {"converting": True}},
-                sort=[("video_information.format.bit_rate", DESCENDING)],
+                sort=[
+                    ("conversion_required", DESCENDING),
+                    ("video_information.format.bit_rate", DESCENDING),
+                ],
             )
         except ServerSelectionTimeoutError:
             logging.error("Could not connect to MongoDB.")
