@@ -25,6 +25,8 @@ from . import media_collection, push_collection, config, NOTIFICATION_TTL
 
 class Converter:
     _validated_encoders: set[str] = set()
+    _copy_chunk_size = 8 * 1024 * 1024
+    _progress_update_interval_seconds = 1.0
 
     def __init__(self):
         # Create ffmpeg object and set it to None
@@ -39,6 +41,10 @@ class Converter:
 
         # Create the backup path and set it to None
         self._backup_path: Path | None = None
+
+        # Track the last persisted progress update so copy and conversion progress
+        # do not overwhelm MongoDB with writes.
+        self._last_progress_update_time: datetime | None = None
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -144,6 +150,97 @@ class Converter:
 
     def _utc_now(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    def _update_percentage_complete(
+        self,
+        percentage_complete: float,
+        *,
+        speed: float | None = None,
+        force: bool = False,
+    ) -> None:
+        if self._file_data is None:
+            return
+
+        now = self._utc_now()
+        bounded_percentage = max(0.0, min(percentage_complete, 100.0))
+
+        if not force and self._last_progress_update_time is not None:
+            if (
+                now - self._last_progress_update_time
+            ).total_seconds() < self._progress_update_interval_seconds:
+                return
+
+        self._file_data.percentage_complete = bounded_percentage
+
+        update_fields: dict[str, Any] = {
+            "percentage_complete": self._file_data.percentage_complete,
+        }
+
+        if speed is not None:
+            self._file_data.speed = speed
+            update_fields["speed"] = speed
+
+        try:
+            media_collection.update_one(
+                {"filename": self._file_data.filename},
+                {"$set": update_fields},
+            )
+        except ServerSelectionTimeoutError:
+            pass
+        except NetworkTimeout:
+            pass
+        except AutoReconnect:
+            pass
+        else:
+            self._last_progress_update_time = now
+
+    def _copy_file_with_progress(
+        self,
+        source_path: Path,
+        destination_path: Path,
+        *,
+        base_bytes: int = 0,
+        total_bytes: int | None = None,
+    ) -> None:
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        source_size = source_path.stat().st_size
+        total_size = total_bytes if total_bytes is not None else source_size
+        bytes_copied = 0
+
+        self._update_percentage_complete(0, force=True)
+
+        try:
+            with source_path.open("rb") as source_file, destination_path.open(
+                "wb"
+            ) as destination_file:
+                while True:
+                    chunk = source_file.read(self._copy_chunk_size)
+                    if not chunk:
+                        break
+
+                    destination_file.write(chunk)
+                    bytes_copied += len(chunk)
+
+                    if total_size > 0:
+                        percentage_complete = (
+                            (base_bytes + bytes_copied) / total_size
+                        ) * 100
+                    else:
+                        percentage_complete = 100
+
+                    self._update_percentage_complete(percentage_complete)
+
+            shutil.copystat(source_path, destination_path)
+        except OSError:
+            destination_path.unlink(missing_ok=True)
+            raise
+
+        if total_size > 0:
+            final_percentage = ((base_bytes + source_size) / total_size) * 100
+        else:
+            final_percentage = 100
+
+        self._update_percentage_complete(final_percentage, force=True)
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -339,6 +436,8 @@ class Converter:
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
             self._file_data.copying = True
+            self._file_data.percentage_complete = 0
+            self._last_progress_update_time = None
 
             try:
                 # Update the file in MongoDB
@@ -351,6 +450,7 @@ class Converter:
                             "backend_name": self._file_data.backend_name,
                             "speed": 0,
                             "copying": self._file_data.copying,
+                            "percentage_complete": self._file_data.percentage_complete,
                         }
                     },
                 )
@@ -389,7 +489,10 @@ class Converter:
             )
 
             # Copy the file to the temporary input path
-            shutil.copy2(input_file_path, self._temporary_input_path)
+            self._copy_file_with_progress(
+                input_file_path,
+                self._temporary_input_path,
+            )
 
             # Set the start conversion tima and clear the copying flag in the db and the file_data object
             self._file_data.start_conversion_time = self._utc_now()
@@ -479,49 +582,25 @@ class Converter:
             logging.info(f'ffmpeg command: {" ".join(self._ffmpeg.arguments)}')
 
             # Store the last update time
-            self.last_update_time = self._utc_now()
+            self._last_progress_update_time = None
 
             # Update the progress bar when ffmpeg emits a progress event
             @self._ffmpeg.on("progress")
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
                 if self._file_data is not None:
-                    # If progress has not been updated in the last second, update it
-                    if (self._utc_now() - self.last_update_time).total_seconds() > 1:
-                        # Calculate the percentage complete
-                        duration = timedelta(
-                            seconds=self._file_data.video_information.format.duration
-                        )
-                        percentage_complete = (ffmpeg_progress.time / duration) * 100
+                    # Calculate the percentage complete
+                    duration = timedelta(
+                        seconds=self._file_data.video_information.format.duration
+                    )
+                    percentage_complete = (ffmpeg_progress.time / duration) * 100
 
-                        # Update the self._file_data object
-                        self._file_data.percentage_complete = percentage_complete
+                    self._update_percentage_complete(
+                        percentage_complete,
+                        speed=ffmpeg_progress.speed,
+                    )
 
-                        try:
-                            # Update the file in MongoDB
-                            media_collection.update_one(
-                                {"filename": self._file_data.filename},
-                                {
-                                    "$set": {
-                                        "percentage_complete": self._file_data.percentage_complete,
-                                        "speed": ffmpeg_progress.speed,
-                                    }
-                                },
-                            )
-                        except ServerSelectionTimeoutError:
-                            # Don't worry about it, we'll try again next time
-                            pass
-                        except NetworkTimeout:
-                            # Don't worry about it, we'll try again next time
-                            pass
-                        except AutoReconnect:
-                            # Don't worry about it, we'll try again next time
-                            pass
-
-                        # Log the progress
-                        logging.debug(ffmpeg_progress)
-
-                        # Update the last update time
-                        self.last_update_time = self._utc_now()
+                    # Log the progress
+                    logging.debug(ffmpeg_progress)
 
             @self._ffmpeg.on("terminated")
             def _on_terminated() -> None:
@@ -577,7 +656,7 @@ class Converter:
                 self._file_data.conversion_error = False
                 self._file_data.copying = True if file_size_reduced else False
                 self._file_data.end_conversion_time = self._utc_now()
-                self._file_data.percentage_complete = 100
+                self._file_data.percentage_complete = 0 if file_size_reduced else 100
                 self._file_data.current_size = (
                     self._temporary_output_path.stat().st_size
                     if file_size_reduced
@@ -638,6 +717,11 @@ class Converter:
                 self._backup_path = Path(
                     config.config_data.folders.backup, self._temporary_input_path.name
                 )
+                total_post_copy_bytes = (
+                    self._temporary_input_path.stat().st_size
+                    + self._temporary_output_path.stat().st_size
+                )
+                completed_post_copy_bytes = 0
 
                 self._backup_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -658,7 +742,13 @@ class Converter:
                         )
 
                         # Copy the file to the backup folder
-                        shutil.copy2(self._temporary_input_path, self._backup_path)
+                        self._copy_file_with_progress(
+                            self._temporary_input_path,
+                            self._backup_path,
+                            base_bytes=completed_post_copy_bytes,
+                            total_bytes=total_post_copy_bytes,
+                        )
+                        completed_post_copy_bytes += self._temporary_input_path.stat().st_size
                     except OSError as e:
                         # There was an error copying the file
                         logging.error(
@@ -723,6 +813,14 @@ class Converter:
                     logging.info(
                         f"File {self._temporary_input_path} hardlink created successfully"
                     )
+                    completed_post_copy_bytes += self._temporary_input_path.stat().st_size
+                    if total_post_copy_bytes > 0:
+                        backup_percentage = (
+                            completed_post_copy_bytes / total_post_copy_bytes
+                        ) * 100
+                    else:
+                        backup_percentage = 100
+                    self._update_percentage_complete(backup_percentage, force=True)
 
                 try:
                     # Log that we are replacing the input file with the output file
@@ -742,7 +840,12 @@ class Converter:
                         )
 
                         # Copy the file to the original folder
-                        shutil.copy2(self._temporary_output_path, input_file_path)
+                        self._copy_file_with_progress(
+                            self._temporary_output_path,
+                            input_file_path,
+                            base_bytes=completed_post_copy_bytes,
+                            total_bytes=total_post_copy_bytes,
+                        )
                     except OSError as e:
                         # There was an error copying the file
                         logging.error(
@@ -805,6 +908,7 @@ class Converter:
 
                         # Update the file_data object
                         self._file_data.copying = False
+                        self._file_data.percentage_complete = 100
 
                         # Get the new inode of the file
                         new_inode = input_file_path.stat().st_ino
@@ -816,6 +920,7 @@ class Converter:
                                 {
                                     "$set": {
                                         "copying": self._file_data.copying,
+                                        "percentage_complete": self._file_data.percentage_complete,
                                         "inode": new_inode,
                                     }
                                 },
@@ -849,6 +954,8 @@ class Converter:
 
                     # Update the file_data object
                     self._file_data.copying = False
+                    self._file_data.percentage_complete = 100
+                    self._update_percentage_complete(100, force=True)
 
                     # Get the new inode of the file
                     new_inode = input_file_path.stat().st_ino
@@ -860,6 +967,7 @@ class Converter:
                             {
                                 "$set": {
                                     "copying": self._file_data.copying,
+                                        "percentage_complete": self._file_data.percentage_complete,
                                     "inode": new_inode,
                                 }
                             },
