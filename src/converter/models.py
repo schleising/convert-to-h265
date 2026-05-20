@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -144,6 +143,8 @@ class FileData(BaseModel):
 
 class ConvertedFileDataFromDb(BaseModel):
     filename: str
+    start_conversion_time: datetime | None = None
+    end_conversion_time: datetime | None = None
     pre_conversion_size: int
     current_size: int
 
