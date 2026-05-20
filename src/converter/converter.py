@@ -252,6 +252,25 @@ class Converter:
                 logging.info("Stopping Conversion due to SIGTERM...")
                 self._cleanup_and_terminate()
 
+    def _delete_temporary_files(self) -> None:
+        if self._temporary_input_path is not None:
+            try:
+                self._temporary_input_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting temp input {self._temporary_input_path}")
+                logging.error(e)
+
+            self._temporary_input_path = None
+
+        if self._temporary_output_path is not None:
+            try:
+                self._temporary_output_path.unlink(missing_ok=True)
+            except OSError as e:
+                logging.error(f"Error deleting temp output {self._temporary_output_path}")
+                logging.error(e)
+
+            self._temporary_output_path = None
+
     def _cleanup_and_terminate(self, conversion_failed: bool = False) -> None:
         if self._file_data is not None:
             # Log that ffmpeg was terminated and we are cleaning up
@@ -308,27 +327,7 @@ class Converter:
             self._ffmpeg = None
 
         # Delete the temporary input and output files
-        if self._temporary_input_path is not None:
-            try:
-                self._temporary_input_path.unlink(missing_ok=True)
-            except OSError as e:
-                logging.error(f"Error deleting temp input {self._temporary_input_path}")
-                logging.error(e)
-
-            # Set the output file path to None
-            self._temporary_input_path = None
-
-        if self._temporary_output_path is not None:
-            try:
-                self._temporary_output_path.unlink(missing_ok=True)
-            except OSError as e:
-                logging.error(
-                    f"Error deleting temp output {self._temporary_output_path}"
-                )
-                logging.error(e)
-
-            # Set the output file path to None
-            self._temporary_output_path = None
+        self._delete_temporary_files()
 
         # Delete the backup file
         if self._backup_path is not None:
@@ -711,6 +710,7 @@ class Converter:
                         "File Size not Reduced",
                         f"{self._temporary_input_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%",
                     )
+                    self._delete_temporary_files()
                     return
 
                 # Create a path for the backup file
