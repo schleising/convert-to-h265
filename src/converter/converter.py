@@ -592,10 +592,10 @@ class Converter:
                 mapping.append(f"0:{first_video_stream}")
 
             if self._file_data.audio_streams > 0:
-                mapping.append(f"0:a")
+                mapping.append(f"0:a?")
 
             if self._file_data.subtitle_streams > 0:
-                mapping.append("0:s")
+                mapping.append("0:s?")
 
             output_options = self._build_output_options(subtitle_codec)
 
