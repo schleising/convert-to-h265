@@ -392,6 +392,30 @@ class Converter:
         self._file_data = self._get_highest_bit_rate()
 
         if self._file_data is not None:
+            if not self._file_data.conversion_required:
+                self._file_data.conversion_required = True
+
+                try:
+                    media_collection.update_one(
+                        {"filename": self._file_data.filename},
+                        {"$set": {"conversion_required": True}},
+                    )
+                except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB.")
+                    self._file_data.converting = False
+                    self._file_data = None
+                    return
+                except NetworkTimeout:
+                    logging.error("Could not connect to MongoDB.")
+                    self._file_data.converting = False
+                    self._file_data = None
+                    return
+                except AutoReconnect:
+                    logging.error("Could not connect to MongoDB.")
+                    self._file_data.converting = False
+                    self._file_data = None
+                    return
+
             # Map the stored Docker path to the local filesystem path when needed
             input_file_path = self._resolve_source_path(self._file_data.filename)
 
