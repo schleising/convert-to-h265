@@ -281,6 +281,7 @@ class Converter:
             # Update the file_data object
             self._file_data.converting = False
             self._file_data.copying = False
+            self._file_data.start_copy_time = None
             self._file_data.start_conversion_time = None
             self._file_data.percentage_complete = 0
 
@@ -300,6 +301,7 @@ class Converter:
                         "$set": {
                             "converting": False,
                             "copying": False,
+                            "start_copy_time": None,
                             "start_conversion_time": None,
                             "percentage_complete": 0,
                             "conversion_error": self._file_data.conversion_error,
@@ -431,7 +433,8 @@ class Converter:
 
             # Update the file_data object
             self._file_data.converting = True
-            self._file_data.start_conversion_time = self._utc_now()
+            self._file_data.start_copy_time = self._utc_now()
+            self._file_data.start_conversion_time = None
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
             self._file_data.copying = True
@@ -445,6 +448,7 @@ class Converter:
                     {
                         "$set": {
                             "converting": self._file_data.converting,
+                            "start_copy_time": self._file_data.start_copy_time,
                             "start_conversion_time": self._file_data.start_conversion_time,
                             "backend_name": self._file_data.backend_name,
                             "speed": 0,
@@ -494,6 +498,7 @@ class Converter:
             )
 
             # Set the start conversion tima and clear the copying flag in the db and the file_data object
+            self._file_data.start_copy_time = None
             self._file_data.start_conversion_time = self._utc_now()
             self._file_data.copying = False
 
@@ -503,6 +508,7 @@ class Converter:
                     {"filename": self._file_data.filename},
                     {
                         "$set": {
+                            "start_copy_time": self._file_data.start_copy_time,
                             "start_conversion_time": self._file_data.start_conversion_time,
                             "copying": self._file_data.copying,
                         }
@@ -654,6 +660,9 @@ class Converter:
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
                 self._file_data.copying = True if file_size_reduced else False
+                self._file_data.start_copy_time = (
+                    self._utc_now() if file_size_reduced else None
+                )
                 self._file_data.end_conversion_time = self._utc_now()
                 self._file_data.percentage_complete = 0 if file_size_reduced else 100
                 self._file_data.current_size = (
@@ -672,6 +681,7 @@ class Converter:
                                 "converted": self._file_data.converted,
                                 "conversion_error": self._file_data.conversion_error,
                                 "copying": self._file_data.copying,
+                                "start_copy_time": self._file_data.start_copy_time,
                                 "end_conversion_time": self._file_data.end_conversion_time,
                                 "percentage_complete": self._file_data.percentage_complete,
                                 "current_size": self._file_data.current_size,
@@ -759,6 +769,7 @@ class Converter:
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
                         self._file_data.copying = False
+                        self._file_data.start_copy_time = None
 
                         try:
                             # Update the file in MongoDB
@@ -768,6 +779,7 @@ class Converter:
                                     "$set": {
                                         "conversion_error": self._file_data.conversion_error,
                                         "copying": self._file_data.copying,
+                                        "start_copy_time": self._file_data.start_copy_time,
                                     }
                                 },
                             )
@@ -856,6 +868,7 @@ class Converter:
                         # Update the file_data object to indicate that there was an error
                         self._file_data.conversion_error = True
                         self._file_data.copying = False
+                        self._file_data.start_copy_time = None
 
                         try:
                             # Update the file in MongoDB
@@ -865,6 +878,7 @@ class Converter:
                                     "$set": {
                                         "conversion_error": self._file_data.conversion_error,
                                         "copying": self._file_data.copying,
+                                        "start_copy_time": self._file_data.start_copy_time,
                                     }
                                 },
                             )
@@ -908,6 +922,7 @@ class Converter:
 
                         # Update the file_data object
                         self._file_data.copying = False
+                        self._file_data.start_copy_time = None
                         self._file_data.percentage_complete = 100
 
                         # Get the new inode of the file
@@ -920,6 +935,7 @@ class Converter:
                                 {
                                     "$set": {
                                         "copying": self._file_data.copying,
+                                        "start_copy_time": self._file_data.start_copy_time,
                                         "percentage_complete": self._file_data.percentage_complete,
                                         "inode": new_inode,
                                     }
@@ -954,6 +970,7 @@ class Converter:
 
                     # Update the file_data object
                     self._file_data.copying = False
+                    self._file_data.start_copy_time = None
                     self._file_data.percentage_complete = 100
                     self._update_percentage_complete(100, force=True)
 
@@ -967,6 +984,7 @@ class Converter:
                             {
                                 "$set": {
                                     "copying": self._file_data.copying,
+                                        "start_copy_time": self._file_data.start_copy_time,
                                         "percentage_complete": self._file_data.percentage_complete,
                                     "inode": new_inode,
                                 }

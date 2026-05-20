@@ -303,6 +303,7 @@ class CodecDetector:
                         conversion_error=False,
                         copying=False,
                         percentage_complete=0,
+                        start_copy_time=None,
                         start_conversion_time=None,
                         end_conversion_time=None,
                         video_streams=video_stream_count,

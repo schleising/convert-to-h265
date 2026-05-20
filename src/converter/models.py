@@ -127,6 +127,7 @@ class FileData(BaseModel):
     conversion_error: bool
     copying: bool | None = None
     percentage_complete: float
+    start_copy_time: datetime | None = None
     start_conversion_time: datetime | None = None
     end_conversion_time: datetime | None = None
     video_streams: int
