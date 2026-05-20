@@ -207,7 +207,12 @@ class Converter:
         total_size = total_bytes if total_bytes is not None else source_size
         bytes_copied = 0
 
-        self._update_percentage_complete(0, force=True)
+        if total_size > 0:
+            starting_percentage = (base_bytes / total_size) * 100
+        else:
+            starting_percentage = 0
+
+        self._update_percentage_complete(starting_percentage, force=True)
 
         try:
             with source_path.open("rb") as source_file, destination_path.open(
