@@ -21,10 +21,11 @@ small_height_threshold = 600
 x265_crf = 28
 x265_crf_small_height = 23
 x265_preset = "medium"
-vt_qv = 55
-vt_qv_small_height = 55
-vt_g = 240
-vt_keyint_min = 240
+vt_qv = 50
+vt_qv_small_height = 50
+vt_g = 72
+vt_keyint_min = 24
+vt_spatial_aq = 1
 vt_realtime = 0
 
 [runtime]

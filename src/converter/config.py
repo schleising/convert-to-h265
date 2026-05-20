@@ -32,10 +32,11 @@ class Encoding(BaseModel):
     x265_crf: int = 28
     x265_crf_small_height: int = 23
     x265_preset: str = "medium"
-    vt_qv: int = 55
-    vt_qv_small_height: int = 55
-    vt_g: int = 240
-    vt_keyint_min: int = 240
+    vt_qv: int = 50
+    vt_qv_small_height: int = 50
+    vt_g: int = 72
+    vt_keyint_min: int = 24
+    vt_spatial_aq: int = 1
     vt_realtime: int = 0
 
 

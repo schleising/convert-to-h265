@@ -73,7 +73,7 @@ The generated native config uses these key defaults:
 - source media is accessed through `/Volumes/Media`
 - MongoDB filenames rooted at `/Media/...` are mapped to `/Volumes/Media/...`
 - temporary conversion files are staged in `/tmp/Movies/convert-to-h265-work`
-- `hevc_videotoolbox` is used with `-q:v 55 -g 240 -keyint_min 240 -realtime 0`
+- `hevc_videotoolbox` is used with `-q:v 50 -g 72 -keyint_min 24 -spatial_aq 1 -realtime 0`
 
 ### Service control
 

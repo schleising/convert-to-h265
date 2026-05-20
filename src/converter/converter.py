@@ -132,6 +132,7 @@ class Converter:
             options["q:v"] = str(qv)
             options["g"] = str(encoding.vt_g)
             options["keyint_min"] = str(encoding.vt_keyint_min)
+            options["spatial_aq"] = str(encoding.vt_spatial_aq)
             options["realtime"] = str(encoding.vt_realtime)
         else:
             raise RuntimeError(f"Unsupported video codec '{video_codec}'")
