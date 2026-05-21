@@ -130,6 +130,9 @@ class FileData(BaseModel):
     start_copy_time: datetime | None = None
     start_conversion_time: datetime | None = None
     end_conversion_time: datetime | None = None
+    overwrite_in_progress: bool = False
+    temp_output_path: str | None = None
+    backup_path: str | None = None
     video_streams: int
     audio_streams: int
     subtitle_streams: int

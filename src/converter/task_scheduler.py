@@ -24,6 +24,9 @@ class TaskScheduler:
         # Boolean to keep track of whether the conversion is running
         self._conversion_running = False
 
+        if os.getenv("FOLDER_WALKER") != "TRUE":
+            Converter().recover_interrupted_overwrites()
+
         # Register signal handlers
         self._register_signal_handlers()
 

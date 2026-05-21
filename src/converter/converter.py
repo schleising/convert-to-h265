@@ -257,7 +257,26 @@ class Converter:
                 logging.info("Stopping Conversion due to SIGTERM...")
                 self._cleanup_and_terminate()
 
-    def _delete_temporary_files(self) -> None:
+    def _overwrite_recovery_active(self) -> bool:
+        return self._file_data is not None and self._file_data.overwrite_in_progress
+
+    def _set_overwrite_recovery_state(
+        self,
+        *,
+        overwrite_in_progress: bool,
+        temp_output_path: Path | None = None,
+        backup_path: Path | None = None,
+    ) -> None:
+        if self._file_data is None:
+            return
+
+        self._file_data.overwrite_in_progress = overwrite_in_progress
+        self._file_data.temp_output_path = (
+            str(temp_output_path) if temp_output_path is not None else None
+        )
+        self._file_data.backup_path = str(backup_path) if backup_path is not None else None
+
+    def _delete_temporary_files(self, preserve_output: bool = False) -> None:
         if self._temporary_input_path is not None:
             try:
                 self._temporary_input_path.unlink(missing_ok=True)
@@ -267,7 +286,7 @@ class Converter:
 
             self._temporary_input_path = None
 
-        if self._temporary_output_path is not None:
+        if self._temporary_output_path is not None and not preserve_output:
             try:
                 self._temporary_output_path.unlink(missing_ok=True)
             except OSError as e:
@@ -276,7 +295,232 @@ class Converter:
 
             self._temporary_output_path = None
 
+    def _clear_runtime_paths(self) -> None:
+        self._file_data = None
+        self._temporary_input_path = None
+        self._temporary_output_path = None
+        self._backup_path = None
+        self._ffmpeg = None
+        self._last_progress_update_time = None
+
+    def _clear_overwrite_recovery_state(self) -> None:
+        self._set_overwrite_recovery_state(overwrite_in_progress=False)
+
+    def _finalize_overwrite_success(self, input_file_path: Path) -> None:
+        if self._file_data is None:
+            return
+
+        self._clear_overwrite_recovery_state()
+        self._file_data.copying = False
+        self._file_data.start_copy_time = None
+        self._file_data.percentage_complete = 100
+
+        new_inode = input_file_path.stat().st_ino
+
+        media_collection.update_one(
+            {"filename": self._file_data.filename},
+            {
+                "$set": {
+                    "copying": self._file_data.copying,
+                    "start_copy_time": self._file_data.start_copy_time,
+                    "percentage_complete": self._file_data.percentage_complete,
+                    "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                    "temp_output_path": self._file_data.temp_output_path,
+                    "backup_path": self._file_data.backup_path,
+                    "inode": new_inode,
+                }
+            },
+        )
+
+    def _recover_interrupted_overwrite(self, file_data: FileData) -> None:
+        self._file_data = file_data
+        self._temporary_output_path = (
+            Path(file_data.temp_output_path)
+            if file_data.temp_output_path is not None
+            else None
+        )
+        self._backup_path = (
+            Path(file_data.backup_path) if file_data.backup_path is not None else None
+        )
+
+        input_file_path = self._resolve_source_path(file_data.filename)
+        temp_output_exists = (
+            self._temporary_output_path is not None and self._temporary_output_path.exists()
+        )
+
+        logging.info(f"Recovering interrupted overwrite for {file_data.filename}")
+
+        if temp_output_exists:
+            temp_output_path = self._temporary_output_path
+            if temp_output_path is None:
+                self._clear_runtime_paths()
+                return
+
+            self._file_data.converting = False
+            self._file_data.copying = True
+            self._file_data.start_copy_time = self._utc_now()
+            self._file_data.percentage_complete = 0
+
+            try:
+                media_collection.update_one(
+                    {"filename": self._file_data.filename},
+                    {
+                        "$set": {
+                            "converting": self._file_data.converting,
+                            "copying": self._file_data.copying,
+                            "start_copy_time": self._file_data.start_copy_time,
+                            "percentage_complete": self._file_data.percentage_complete,
+                        }
+                    },
+                )
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+                self._clear_runtime_paths()
+                return
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
+                self._clear_runtime_paths()
+                return
+            except AutoReconnect:
+                logging.error("Could not connect to MongoDB.")
+                self._clear_runtime_paths()
+                return
+
+            try:
+                temp_output_path.replace(input_file_path)
+            except OSError:
+                try:
+                    self._copy_file_with_progress(
+                        temp_output_path,
+                        input_file_path,
+                    )
+                except OSError as e:
+                    logging.error(
+                        f"Error recovering overwrite of {temp_output_path} to {input_file_path}"
+                    )
+                    logging.error(e)
+
+                    self._file_data.copying = False
+                    self._file_data.start_copy_time = None
+                    self._file_data.conversion_error = True
+                    self._clear_overwrite_recovery_state()
+
+                    try:
+                        media_collection.update_one(
+                            {"filename": self._file_data.filename},
+                            {
+                                "$set": {
+                                    "copying": self._file_data.copying,
+                                    "start_copy_time": self._file_data.start_copy_time,
+                                    "conversion_error": self._file_data.conversion_error,
+                                    "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                                    "temp_output_path": self._file_data.temp_output_path,
+                                    "backup_path": self._file_data.backup_path,
+                                }
+                            },
+                        )
+                    except ServerSelectionTimeoutError:
+                        logging.error("Could not connect to MongoDB.")
+                    except NetworkTimeout:
+                        logging.error("Could not connect to MongoDB.")
+                    except AutoReconnect:
+                        logging.error("Could not connect to MongoDB.")
+                    finally:
+                        self._clear_runtime_paths()
+
+                    return
+
+            try:
+                self._finalize_overwrite_success(input_file_path)
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
+            except AutoReconnect:
+                logging.error("Could not connect to MongoDB.")
+
+            self._delete_temporary_files()
+            self._clear_runtime_paths()
+            return
+
+        # If the staged file is missing but the on-disk file matches the expected
+        # converted size, assume the atomic replace succeeded before shutdown.
+        if input_file_path.exists() and input_file_path.stat().st_size == file_data.current_size:
+            self._file_data.copying = False
+            self._file_data.start_copy_time = None
+            self._file_data.percentage_complete = 100
+            self._clear_overwrite_recovery_state()
+
+            try:
+                self._finalize_overwrite_success(input_file_path)
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
+            except AutoReconnect:
+                logging.error("Could not connect to MongoDB.")
+        else:
+            self._file_data.copying = False
+            self._file_data.start_copy_time = None
+            self._file_data.conversion_error = True
+            self._clear_overwrite_recovery_state()
+
+            try:
+                media_collection.update_one(
+                    {"filename": self._file_data.filename},
+                    {
+                        "$set": {
+                            "copying": self._file_data.copying,
+                            "start_copy_time": self._file_data.start_copy_time,
+                            "conversion_error": self._file_data.conversion_error,
+                            "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                            "temp_output_path": self._file_data.temp_output_path,
+                            "backup_path": self._file_data.backup_path,
+                        }
+                    },
+                )
+            except ServerSelectionTimeoutError:
+                logging.error("Could not connect to MongoDB.")
+            except NetworkTimeout:
+                logging.error("Could not connect to MongoDB.")
+            except AutoReconnect:
+                logging.error("Could not connect to MongoDB.")
+
+        self._clear_runtime_paths()
+
+    def recover_interrupted_overwrites(self) -> None:
+        backend_name = os.getenv("BACKEND_NAME", "None")
+
+        try:
+            interrupted_overwrites = list(
+                media_collection.find(
+                    {
+                        "overwrite_in_progress": True,
+                        "deleted": False,
+                        "backend_name": backend_name,
+                    }
+                )
+            )
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB.")
+            return
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB.")
+            return
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+            return
+
+        logging.info(
+            f"Checking interrupted overwrites for backend {backend_name}: {len(interrupted_overwrites)} found"
+        )
+
+        for db_file in interrupted_overwrites:
+            self._recover_interrupted_overwrite(FileData(**db_file))
+
     def _cleanup_and_terminate(self, conversion_failed: bool = False) -> None:
+        preserve_overwrite_recovery = self._overwrite_recovery_active()
+
         if self._file_data is not None:
             # Log that ffmpeg was terminated and we are cleaning up
             logging.info(
@@ -285,10 +529,11 @@ class Converter:
 
             # Update the file_data object
             self._file_data.converting = False
-            self._file_data.copying = False
-            self._file_data.start_copy_time = None
-            self._file_data.start_conversion_time = None
-            self._file_data.percentage_complete = 0
+            if not preserve_overwrite_recovery:
+                self._file_data.copying = False
+                self._file_data.start_copy_time = None
+                self._file_data.start_conversion_time = None
+                self._file_data.percentage_complete = 0
 
             if conversion_failed:
                 self._file_data.conversion_error = True
@@ -305,10 +550,13 @@ class Converter:
                     {
                         "$set": {
                             "converting": False,
-                            "copying": False,
-                            "start_copy_time": None,
-                            "start_conversion_time": None,
-                            "percentage_complete": 0,
+                            "copying": self._file_data.copying,
+                            "start_copy_time": self._file_data.start_copy_time,
+                            "start_conversion_time": self._file_data.start_conversion_time,
+                            "percentage_complete": self._file_data.percentage_complete,
+                            "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                            "temp_output_path": self._file_data.temp_output_path,
+                            "backup_path": self._file_data.backup_path,
                             "conversion_error": self._file_data.conversion_error,
                         }
                     },
@@ -334,10 +582,10 @@ class Converter:
             self._ffmpeg = None
 
         # Delete the temporary input and output files
-        self._delete_temporary_files()
+        self._delete_temporary_files(preserve_output=preserve_overwrite_recovery)
 
         # Delete the backup file
-        if self._backup_path is not None:
+        if self._backup_path is not None and not preserve_overwrite_recovery:
             try:
                 self._backup_path.unlink(missing_ok=True)
             except OSError as e:
@@ -868,6 +1116,36 @@ class Converter:
                         backup_percentage = 100
                     self._update_percentage_complete(backup_percentage, force=True)
 
+                self._set_overwrite_recovery_state(
+                    overwrite_in_progress=True,
+                    temp_output_path=self._temporary_output_path,
+                    backup_path=self._backup_path,
+                )
+
+                try:
+                    media_collection.update_one(
+                        {"filename": self._file_data.filename},
+                        {
+                            "$set": {
+                                "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                                "temp_output_path": self._file_data.temp_output_path,
+                                "backup_path": self._file_data.backup_path,
+                            }
+                        },
+                    )
+                except ServerSelectionTimeoutError:
+                    logging.error("Could not connect to MongoDB.")
+                    self._cleanup_and_terminate(conversion_failed=True)
+                    return
+                except NetworkTimeout:
+                    logging.error("Could not connect to MongoDB.")
+                    self._cleanup_and_terminate(conversion_failed=True)
+                    return
+                except AutoReconnect:
+                    logging.error("Could not connect to MongoDB.")
+                    self._cleanup_and_terminate(conversion_failed=True)
+                    return
+
                 try:
                     # Log that we are replacing the input file with the output file
                     logging.info(
@@ -955,26 +1233,8 @@ class Converter:
                         )
 
                         # Update the file_data object
-                        self._file_data.copying = False
-                        self._file_data.start_copy_time = None
-                        self._file_data.percentage_complete = 100
-
-                        # Get the new inode of the file
-                        new_inode = input_file_path.stat().st_ino
-
-                        # Update the file in MongoDB
                         try:
-                            media_collection.update_one(
-                                {"filename": self._file_data.filename},
-                                {
-                                    "$set": {
-                                        "copying": self._file_data.copying,
-                                        "start_copy_time": self._file_data.start_copy_time,
-                                        "percentage_complete": self._file_data.percentage_complete,
-                                        "inode": new_inode,
-                                    }
-                                },
-                            )
+                            self._finalize_overwrite_success(input_file_path)
                         except ServerSelectionTimeoutError:
                             logging.error("Could not connect to MongoDB.")
 
@@ -1003,27 +1263,9 @@ class Converter:
                     )
 
                     # Update the file_data object
-                    self._file_data.copying = False
-                    self._file_data.start_copy_time = None
-                    self._file_data.percentage_complete = 100
-                    self._update_percentage_complete(100, force=True)
-
-                    # Get the new inode of the file
-                    new_inode = input_file_path.stat().st_ino
-
-                    # Update the file in MongoDB
                     try:
-                        media_collection.update_one(
-                            {"filename": self._file_data.filename},
-                            {
-                                "$set": {
-                                    "copying": self._file_data.copying,
-                                        "start_copy_time": self._file_data.start_copy_time,
-                                        "percentage_complete": self._file_data.percentage_complete,
-                                    "inode": new_inode,
-                                }
-                            },
-                        )
+                        self._update_percentage_complete(100, force=True)
+                        self._finalize_overwrite_success(input_file_path)
                     except ServerSelectionTimeoutError:
                         logging.error("Could not connect to MongoDB.")
 
@@ -1047,29 +1289,7 @@ class Converter:
                     )
 
                 # Delete the temporary input and output files
-                if self._temporary_input_path is not None:
-                    try:
-                        self._temporary_input_path.unlink(missing_ok=True)
-                    except OSError as e:
-                        logging.error(
-                            f"Error deleting temp input {self._temporary_input_path}"
-                        )
-                        logging.error(e)
-
-                    # Set the output file path to None
-                    self._temporary_input_path = None
-
-                if self._temporary_output_path is not None:
-                    try:
-                        self._temporary_output_path.unlink(missing_ok=True)
-                    except OSError as e:
-                        logging.error(
-                            f"Error deleting temp output {self._temporary_output_path}"
-                        )
-                        logging.error(e)
-
-                    # Set the output file path to None
-                    self._temporary_output_path = None
+                self._delete_temporary_files()
 
     # Send a push notification for the file conversion status
     def send_notification(self, title: str, message: str) -> None:
