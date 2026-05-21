@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import logging
@@ -194,6 +195,83 @@ class Converter:
         else:
             self._last_progress_update_time = now
 
+    def _get_copy_edge_hashes(self, file_path: Path) -> tuple[int, str, str]:
+        file_size = file_path.stat().st_size
+
+        with file_path.open("rb") as file_handle:
+            first_chunk = file_handle.read(self._copy_chunk_size)
+
+            if file_size > self._copy_chunk_size:
+                file_handle.seek(file_size - self._copy_chunk_size)
+                last_chunk = file_handle.read(self._copy_chunk_size)
+            else:
+                last_chunk = first_chunk
+
+        first_hash = hashlib.blake2b(first_chunk, digest_size=16).hexdigest()
+        last_hash = hashlib.blake2b(last_chunk, digest_size=16).hexdigest()
+
+        return file_size, first_hash, last_hash
+
+    def _verify_copied_file(self, source_path: Path, destination_path: Path) -> None:
+        source_size, source_first_hash, source_last_hash = self._get_copy_edge_hashes(
+            source_path
+        )
+        (
+            destination_size,
+            destination_first_hash,
+            destination_last_hash,
+        ) = self._get_copy_edge_hashes(destination_path)
+
+        if source_size != destination_size:
+            raise OSError(
+                f"Copy verification failed for {source_path} -> {destination_path}: size mismatch"
+            )
+
+        if source_first_hash != destination_first_hash:
+            raise OSError(
+                f"Copy verification failed for {source_path} -> {destination_path}: first chunk mismatch"
+            )
+
+        if source_last_hash != destination_last_hash:
+            raise OSError(
+                f"Copy verification failed for {source_path} -> {destination_path}: last chunk mismatch"
+            )
+
+    def _record_copy_failure(self, message: str) -> None:
+        logging.error(message)
+
+        if self._file_data is None:
+            return
+
+        self._file_data.converting = False
+        self._file_data.copying = False
+        self._file_data.start_copy_time = None
+        self._file_data.conversion_error = True
+        self._file_data.conversion_error_message = message
+
+        try:
+            media_collection.update_one(
+                {"filename": self._file_data.filename},
+                {
+                    "$set": {
+                        "converting": self._file_data.converting,
+                        "copying": self._file_data.copying,
+                        "start_copy_time": self._file_data.start_copy_time,
+                        "conversion_error": self._file_data.conversion_error,
+                        "conversion_error_message": self._file_data.conversion_error_message,
+                        "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                        "temp_output_path": self._file_data.temp_output_path,
+                        "backup_path": self._file_data.backup_path,
+                    }
+                },
+            )
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB.")
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB.")
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+
     def _copy_file_with_progress(
         self,
         source_path: Path,
@@ -236,6 +314,7 @@ class Converter:
                     self._update_percentage_complete(percentage_complete)
 
             shutil.copystat(source_path, destination_path)
+            self._verify_copied_file(source_path, destination_path)
         except OSError:
             destination_path.unlink(missing_ok=True)
             raise
@@ -327,6 +406,7 @@ class Converter:
                     "overwrite_in_progress": self._file_data.overwrite_in_progress,
                     "temp_output_path": self._file_data.temp_output_path,
                     "backup_path": self._file_data.backup_path,
+                    "conversion_error_message": self._file_data.conversion_error_message,
                     "inode": new_inode,
                 }
             },
@@ -413,6 +493,7 @@ class Converter:
                                     "copying": self._file_data.copying,
                                     "start_copy_time": self._file_data.start_copy_time,
                                     "conversion_error": self._file_data.conversion_error,
+                                    "conversion_error_message": self._file_data.conversion_error_message,
                                     "overwrite_in_progress": self._file_data.overwrite_in_progress,
                                     "temp_output_path": self._file_data.temp_output_path,
                                     "backup_path": self._file_data.backup_path,
@@ -473,6 +554,7 @@ class Converter:
                             "copying": self._file_data.copying,
                             "start_copy_time": self._file_data.start_copy_time,
                             "conversion_error": self._file_data.conversion_error,
+                            "conversion_error_message": self._file_data.conversion_error_message,
                             "overwrite_in_progress": self._file_data.overwrite_in_progress,
                             "temp_output_path": self._file_data.temp_output_path,
                             "backup_path": self._file_data.backup_path,
@@ -558,6 +640,7 @@ class Converter:
                             "temp_output_path": self._file_data.temp_output_path,
                             "backup_path": self._file_data.backup_path,
                             "conversion_error": self._file_data.conversion_error,
+                            "conversion_error_message": self._file_data.conversion_error_message,
                         }
                     },
                 )
@@ -720,6 +803,8 @@ class Converter:
             self._file_data.backend_name = os.getenv("BACKEND_NAME", "None")
             self._file_data.speed = 0
             self._file_data.copying = True
+            self._file_data.conversion_error = False
+            self._file_data.conversion_error_message = None
             self._file_data.percentage_complete = 0
             self._last_progress_update_time = None
 
@@ -735,6 +820,8 @@ class Converter:
                             "backend_name": self._file_data.backend_name,
                             "speed": 0,
                             "copying": self._file_data.copying,
+                            "conversion_error": self._file_data.conversion_error,
+                            "conversion_error_message": self._file_data.conversion_error_message,
                             "percentage_complete": self._file_data.percentage_complete,
                         }
                     },
@@ -774,10 +861,17 @@ class Converter:
             )
 
             # Copy the file to the temporary input path
-            self._copy_file_with_progress(
-                input_file_path,
-                self._temporary_input_path,
-            )
+            try:
+                self._copy_file_with_progress(
+                    input_file_path,
+                    self._temporary_input_path,
+                )
+            except OSError as e:
+                self._record_copy_failure(
+                    f"Error copying {input_file_path} to {self._temporary_input_path}: {e}"
+                )
+                self._delete_temporary_files()
+                return
 
             # Set the start conversion tima and clear the copying flag in the db and the file_data object
             self._file_data.start_copy_time = None
@@ -941,6 +1035,7 @@ class Converter:
                 self._file_data.converting = False
                 self._file_data.converted = True
                 self._file_data.conversion_error = False
+                self._file_data.conversion_error_message = None
                 self._file_data.copying = True if file_size_reduced else False
                 self._file_data.start_copy_time = (
                     self._utc_now() if file_size_reduced else None
@@ -962,6 +1057,7 @@ class Converter:
                                 "converting": self._file_data.converting,
                                 "converted": self._file_data.converted,
                                 "conversion_error": self._file_data.conversion_error,
+                                "conversion_error_message": self._file_data.conversion_error_message,
                                 "copying": self._file_data.copying,
                                 "start_copy_time": self._file_data.start_copy_time,
                                 "end_conversion_time": self._file_data.end_conversion_time,
@@ -1043,15 +1139,9 @@ class Converter:
                         completed_post_copy_bytes += self._temporary_input_path.stat().st_size
                     except OSError as e:
                         # There was an error copying the file
-                        logging.error(
-                            f"Error copying {self._temporary_input_path} to backup folder"
+                        self._record_copy_failure(
+                            f"Error copying {self._temporary_input_path} to backup folder: {e}"
                         )
-                        logging.error(e)
-
-                        # Update the file_data object to indicate that there was an error
-                        self._file_data.conversion_error = True
-                        self._file_data.copying = False
-                        self._file_data.start_copy_time = None
 
                         try:
                             # Update the file in MongoDB
@@ -1060,6 +1150,7 @@ class Converter:
                                 {
                                     "$set": {
                                         "conversion_error": self._file_data.conversion_error,
+                                        "conversion_error_message": self._file_data.conversion_error_message,
                                         "copying": self._file_data.copying,
                                         "start_copy_time": self._file_data.start_copy_time,
                                     }
@@ -1172,15 +1263,9 @@ class Converter:
                         )
                     except OSError as e:
                         # There was an error copying the file
-                        logging.error(
-                            f"Error copying {self._temporary_output_path} to {input_file_path}"
+                        self._record_copy_failure(
+                            f"Error copying {self._temporary_output_path} to {input_file_path}: {e}"
                         )
-                        logging.error(e)
-
-                        # Update the file_data object to indicate that there was an error
-                        self._file_data.conversion_error = True
-                        self._file_data.copying = False
-                        self._file_data.start_copy_time = None
 
                         try:
                             # Update the file in MongoDB
@@ -1189,6 +1274,7 @@ class Converter:
                                 {
                                     "$set": {
                                         "conversion_error": self._file_data.conversion_error,
+                                        "conversion_error_message": self._file_data.conversion_error_message,
                                         "copying": self._file_data.copying,
                                         "start_copy_time": self._file_data.start_copy_time,
                                     }

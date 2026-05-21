@@ -301,6 +301,7 @@ class CodecDetector:
                         converting=False,
                         converted=False,
                         conversion_error=False,
+                        conversion_error_message=None,
                         copying=False,
                         percentage_complete=0,
                         start_copy_time=None,

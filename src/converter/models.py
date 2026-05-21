@@ -125,6 +125,7 @@ class FileData(BaseModel):
     converting: bool
     converted: bool
     conversion_error: bool
+    conversion_error_message: str | None = None
     copying: bool | None = None
     percentage_complete: float
     start_copy_time: datetime | None = None
