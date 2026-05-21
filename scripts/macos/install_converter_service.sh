@@ -163,12 +163,10 @@ LABEL="$LABEL"
 EOF
 
 if grep -Eq '^DB_URL=(CHANGE_ME)?$' "$ENV_DEST"; then
-    echo "DB_URL is not configured in $ENV_DEST. Service files were installed, but the converter was not started."
+    echo "DB_URL is not configured in $ENV_DEST. Service files were installed only."
     echo "Set DB_URL in $ENV_DEST and then run start_converter."
     exit 0
 fi
-
-"$SCRIPT_DIR/start_converter"
 
 echo "Installed converter service."
 echo "Config: $CONFIG_DEST"
@@ -177,3 +175,4 @@ echo "Plist:  $PLIST_DEST"
 echo "Helpers: $BIN_DIR"
 echo "Runtime: $RUNTIME_ROOT"
 echo "zsh PATH updated in: $ZSHRC_PATH"
+echo "Run start_converter to start the service."
