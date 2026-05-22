@@ -244,10 +244,18 @@ class Converter:
             return
 
         self._file_data.converting = False
+        self._file_data.converted = False
         self._file_data.copying = False
+        self._file_data.conversion_required = True
         self._file_data.start_copy_time = None
+        self._file_data.start_conversion_time = None
+        self._file_data.end_conversion_time = None
+        self._file_data.percentage_complete = 0
+        self._file_data.speed = 0
         self._file_data.conversion_error = True
         self._file_data.conversion_error_message = message
+        self._file_data.current_size = self._file_data.pre_conversion_size
+        self._clear_overwrite_recovery_state()
 
         try:
             media_collection.update_one(
@@ -255,10 +263,17 @@ class Converter:
                 {
                     "$set": {
                         "converting": self._file_data.converting,
+                        "converted": self._file_data.converted,
                         "copying": self._file_data.copying,
+                        "conversion_required": self._file_data.conversion_required,
                         "start_copy_time": self._file_data.start_copy_time,
+                        "start_conversion_time": self._file_data.start_conversion_time,
+                        "end_conversion_time": self._file_data.end_conversion_time,
+                        "percentage_complete": self._file_data.percentage_complete,
+                        "speed": self._file_data.speed,
                         "conversion_error": self._file_data.conversion_error,
                         "conversion_error_message": self._file_data.conversion_error_message,
+                        "current_size": self._file_data.current_size,
                         "overwrite_in_progress": self._file_data.overwrite_in_progress,
                         "temp_output_path": self._file_data.temp_output_path,
                         "backup_path": self._file_data.backup_path,
@@ -1143,44 +1158,6 @@ class Converter:
                             f"Error copying {self._temporary_input_path} to backup folder: {e}"
                         )
 
-                        try:
-                            # Update the file in MongoDB
-                            media_collection.update_one(
-                                {"filename": self._file_data.filename},
-                                {
-                                    "$set": {
-                                        "conversion_error": self._file_data.conversion_error,
-                                        "conversion_error_message": self._file_data.conversion_error_message,
-                                        "copying": self._file_data.copying,
-                                        "start_copy_time": self._file_data.start_copy_time,
-                                    }
-                                },
-                            )
-                        except ServerSelectionTimeoutError:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except NetworkTimeout:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except AutoReconnect:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
-
                         # Send a notification
                         self.send_notification(
                             "Backup Failed", f"{Path(self._file_data.filename).name}"
@@ -1266,44 +1243,6 @@ class Converter:
                         self._record_copy_failure(
                             f"Error copying {self._temporary_output_path} to {input_file_path}: {e}"
                         )
-
-                        try:
-                            # Update the file in MongoDB
-                            media_collection.update_one(
-                                {"filename": self._file_data.filename},
-                                {
-                                    "$set": {
-                                        "conversion_error": self._file_data.conversion_error,
-                                        "conversion_error_message": self._file_data.conversion_error_message,
-                                        "copying": self._file_data.copying,
-                                        "start_copy_time": self._file_data.start_copy_time,
-                                    }
-                                },
-                            )
-                        except ServerSelectionTimeoutError:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except NetworkTimeout:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except AutoReconnect:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Clean up and terminate
-                            self._cleanup_and_terminate()
-
-                            # Exit without swapping the converted file for the original
-                            return
 
                         # Send a notification
                         self.send_notification(
