@@ -584,10 +584,10 @@ class Converter:
             db_file = media_collection.find_one_and_update(
                 {
                     "overwrite_in_progress": True,
-                    "conversion_error": False,
-                    "deleted": False,
-                    "converting": False,
-                    "copying": False,
+                    "conversion_error": {"$ne": True},
+                    "deleted": {"$ne": True},
+                    "converting": {"$ne": True},
+                    "copying": {"$ne": True},
                     "backend_name": backend_name,
                 },
                 {
@@ -704,11 +704,11 @@ class Converter:
         try:
             db_file = media_collection.find_one_and_update(
                 {
-                    "converting": False,
-                    "converted": False,
-                    "conversion_error": False,
-                    "deleted": False,
-                    "copying": {"$in": [False, None]},
+                    "converting": {"$ne": True},
+                    "converted": {"$ne": True},
+                    "conversion_error": {"$ne": True},
+                    "deleted": {"$ne": True},
+                    "copying": {"$ne": True},
                 },
                 {"$set": {"converting": True}},
                 sort=[
