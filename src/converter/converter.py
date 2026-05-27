@@ -708,7 +708,7 @@ class Converter:
                     "converted": False,
                     "conversion_error": False,
                     "deleted": False,
-                    "copying": False,
+                    "copying": False or None,
                 },
                 {"$set": {"converting": True}},
                 sort=[
