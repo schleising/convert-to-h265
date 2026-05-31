@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import errno
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import shutil
 import os
+import time
 from typing import Any
 
 from pymongo import DESCENDING
@@ -24,9 +26,42 @@ from .models import FileData
 from . import media_collection, push_collection, config, NOTIFICATION_TTL
 
 
+class _ProgressReader:
+    """Wrap a readable file object and report copy progress on each read()."""
+
+    def __init__(
+        self,
+        raw: Any,
+        *,
+        base_bytes: int,
+        total_size: int,
+        on_progress: Any,
+    ) -> None:
+        self._raw = raw
+        self._base_bytes = base_bytes
+        self._total_size = total_size
+        self._bytes_copied = 0
+        self._on_progress = on_progress
+
+    def read(self, size: int = -1) -> bytes:
+        chunk = self._raw.read(size)
+        if chunk:
+            self._bytes_copied += len(chunk)
+            if self._total_size > 0:
+                percentage_complete = (
+                    (self._base_bytes + self._bytes_copied) / self._total_size
+                ) * 100
+            else:
+                percentage_complete = 100.0
+            self._on_progress(percentage_complete)
+        return chunk
+
+
 class Converter:
     _validated_encoders: set[str] = set()
     _copy_chunk_size = 8 * 1024 * 1024
+    _copy_max_attempts = 3
+    _copy_retry_backoff_seconds = (2, 5, 10)
     _progress_update_interval_seconds = 1.0
 
     def __init__(self):
@@ -237,6 +272,72 @@ class Converter:
                 f"Copy verification failed for {source_path} -> {destination_path}: last chunk mismatch"
             )
 
+    def _is_transient_copy_error(self, exc: OSError) -> bool:
+        transient_errnos = {
+            errno.EINTR,
+            errno.EIO,
+            errno.EBADF,
+            errno.ECONNRESET,
+            errno.ETIMEDOUT,
+            errno.ENXIO,
+        }
+        if exc.errno in transient_errnos:
+            return True
+
+        message = str(exc).lower()
+        return any(
+            phrase in message
+            for phrase in (
+                "bad file descriptor",
+                "timed out",
+                "socket is not connected",
+                "broken pipe",
+                "stale file handle",
+            )
+        )
+
+    def _format_copy_failure_message(
+        self, error: OSError, *, retain_temporary_files: bool = False
+    ) -> str:
+        message = str(error)
+        if not retain_temporary_files:
+            return message
+
+        details = [message]
+        if self._temporary_output_path is not None:
+            details.append(f"Temp output: {self._temporary_output_path}")
+        if self._temporary_input_path is not None:
+            details.append(f"Temp input: {self._temporary_input_path}")
+        if self._backup_path is not None and self._backup_path.exists():
+            details.append(f"Backup: {self._backup_path}")
+        return ". ".join(details)
+
+    def _verify_copied_file_with_retry(
+        self, source_path: Path, destination_path: Path
+    ) -> None:
+        last_error: OSError | None = None
+
+        for attempt in range(1, self._copy_max_attempts + 1):
+            try:
+                self._verify_copied_file(source_path, destination_path)
+                return
+            except OSError as exc:
+                last_error = exc
+                if (
+                    attempt < self._copy_max_attempts
+                    and self._is_transient_copy_error(exc)
+                ):
+                    logging.warning(
+                        f"Copy verification attempt {attempt} failed for "
+                        f"{destination_path}: {exc}; retrying"
+                    )
+                    time.sleep(self._copy_retry_backoff_seconds[attempt - 1])
+                    continue
+                raise
+
+        if last_error is not None:
+            raise last_error
+
     def _record_copy_failure(
         self, message: str, *, retain_temporary_files: bool = False
     ) -> None:
@@ -333,11 +434,11 @@ class Converter:
         *,
         base_bytes: int = 0,
         total_bytes: int | None = None,
+        protect_destination: bool = False,
     ) -> None:
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         source_size = source_path.stat().st_size
         total_size = total_bytes if total_bytes is not None else source_size
-        bytes_copied = 0
 
         if total_size > 0:
             starting_percentage = (base_bytes / total_size) * 100
@@ -346,32 +447,49 @@ class Converter:
 
         self._update_percentage_complete(starting_percentage, force=True)
 
-        try:
-            with source_path.open("rb") as source_file, destination_path.open(
-                "wb"
-            ) as destination_file:
-                while True:
-                    chunk = source_file.read(self._copy_chunk_size)
-                    if not chunk:
-                        break
+        last_error: OSError | None = None
+        for attempt in range(1, self._copy_max_attempts + 1):
+            try:
+                with source_path.open("rb") as source_file, destination_path.open(
+                    "wb"
+                ) as destination_file:
+                    # Python 3.14+: length is the read buffer size, not total bytes.
+                    shutil.copyfileobj(
+                        _ProgressReader(
+                            source_file,
+                            base_bytes=base_bytes,
+                            total_size=total_size,
+                            on_progress=self._update_percentage_complete,
+                        ),
+                        destination_file,
+                        length=self._copy_chunk_size,
+                    )
 
-                    destination_file.write(chunk)
-                    bytes_copied += len(chunk)
+                shutil.copystat(source_path, destination_path)
+                self._verify_copied_file_with_retry(source_path, destination_path)
+                break
+            except OSError as exc:
+                last_error = exc
+                if attempt < self._copy_max_attempts and self._is_transient_copy_error(
+                    exc
+                ):
+                    logging.warning(
+                        f"Copy attempt {attempt} failed for {source_path} -> "
+                        f"{destination_path}: {exc}; retrying"
+                    )
+                    time.sleep(self._copy_retry_backoff_seconds[attempt - 1])
+                    continue
 
-                    if total_size > 0:
-                        percentage_complete = (
-                            (base_bytes + bytes_copied) / total_size
-                        ) * 100
-                    else:
-                        percentage_complete = 100
-
-                    self._update_percentage_complete(percentage_complete)
-
-            shutil.copystat(source_path, destination_path)
-            self._verify_copied_file(source_path, destination_path)
-        except OSError:
-            destination_path.unlink(missing_ok=True)
-            raise
+                raise OSError(
+                    f"Error copying {source_path} to {destination_path} after "
+                    f"{attempt} attempt(s): {exc}"
+                ) from exc
+        else:
+            if last_error is not None:
+                raise OSError(
+                    f"Error copying {source_path} to {destination_path} after "
+                    f"{self._copy_max_attempts} attempt(s): {last_error}"
+                ) from last_error
 
         if total_size > 0:
             final_percentage = ((base_bytes + source_size) / total_size) * 100
@@ -379,6 +497,12 @@ class Converter:
             final_percentage = 100
 
         self._update_percentage_complete(final_percentage, force=True)
+
+        if protect_destination:
+            logging.debug(
+                f"Protected copy completed for {destination_path}; "
+                "destination was rewritten in place without unlinking"
+            )
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -532,10 +656,13 @@ class Converter:
                     self._copy_file_with_progress(
                         temp_output_path,
                         input_file_path,
+                        protect_destination=True,
                     )
                 except OSError as e:
                     self._record_copy_failure(
-                        f"Error recovering overwrite of {temp_output_path} to {input_file_path}: {e}",
+                        self._format_copy_failure_message(
+                            e, retain_temporary_files=True
+                        ),
                         retain_temporary_files=True,
                     )
                     self._clear_runtime_paths()
@@ -613,7 +740,9 @@ class Converter:
 
         return None
 
-    def _cleanup_and_terminate(self, conversion_failed: bool = False) -> None:
+    def _cleanup_and_terminate(
+        self, conversion_failed: bool = False, failure_message: str | None = None
+    ) -> None:
         preserve_overwrite_recovery = self._overwrite_recovery_active()
 
         if self._file_data is not None:
@@ -632,6 +761,10 @@ class Converter:
 
             if conversion_failed:
                 self._file_data.conversion_error = True
+                if failure_message is not None:
+                    self._file_data.conversion_error_message = failure_message
+                elif not self._file_data.conversion_error_message:
+                    self._file_data.conversion_error_message = "Conversion failed"
 
                 # Send a notification
                 self.send_notification(
@@ -885,9 +1018,7 @@ class Converter:
                     self._temporary_input_path,
                 )
             except OSError as e:
-                self._record_copy_failure(
-                    f"Error copying {input_file_path} to {self._temporary_input_path}: {e}"
-                )
+                self._record_copy_failure(self._format_copy_failure_message(e))
                 self._delete_temporary_files()
                 return
 
@@ -1158,7 +1289,9 @@ class Converter:
                     except OSError as e:
                         # There was an error copying the file
                         self._record_copy_failure(
-                            f"Error copying {self._temporary_input_path} to backup folder: {e}",
+                            self._format_copy_failure_message(
+                                e, retain_temporary_files=True
+                            ),
                             retain_temporary_files=True,
                         )
 
@@ -1241,11 +1374,14 @@ class Converter:
                             input_file_path,
                             base_bytes=completed_post_copy_bytes,
                             total_bytes=total_post_copy_bytes,
+                            protect_destination=True,
                         )
                     except OSError as e:
                         # There was an error copying the file
                         self._record_copy_failure(
-                            f"Error copying {self._temporary_output_path} to {input_file_path}: {e}",
+                            self._format_copy_failure_message(
+                                e, retain_temporary_files=True
+                            ),
                             retain_temporary_files=True,
                         )
 
