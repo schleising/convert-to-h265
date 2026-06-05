@@ -1,5 +1,5 @@
 aiohappyeyeballs==2.6.2
-aiohttp==3.13.5
+aiohttp==3.14.0
 aiosignal==1.4.0
 annotated-types==0.7.0
 attrs==26.1.0
@@ -10,7 +10,7 @@ cryptography==48.0.0
 dnspython==2.8.0
 frozenlist==1.8.0
 http_ece==1.2.1
-idna==3.17
+idna==3.18
 multidict==6.7.1
 propcache==0.5.2
 py-vapid==1.9.4
