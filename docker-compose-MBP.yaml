@@ -1,0 +1,33 @@
+services:
+  backend-1:
+    build: backend
+    container_name: MBP-1
+    hostname:  MBP-1
+    environment:
+      - FOLDER_WALKER=FALSE
+      - BACKEND_NAME=MBP-1
+      - DB_URL=mongodb://macmini2.home.arpa:27017
+      - DB_NAME=media
+      - DB_COLLECTION=media_collection
+      - PUSH_COLLECTION=push_subscriptions
+    volumes:
+      - ./src:/src:ro
+      - converter_volume:/Conversions:rw
+      - nas_media:/Media:rw
+    restart: unless-stopped
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+volumes:
+  converter_volume:
+  nas_media:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//${SMB_HOST}/${SMB_SHARE}"
+      o: "username=${SMB_USER},password=${SMB_PASS},vers=3.0,iocharset=utf8,rw,soft"
