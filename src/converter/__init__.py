@@ -63,6 +63,9 @@ media_collection = _db.get_collection(mongo_collection, codec_options=CodecOptio
 # Get the push collection
 push_collection = _db.get_collection(_push_collection_name)
 
+# Cover art metadata is written by website3 into the same media database.
+cover_art_cache_collection = _db.get_collection("cover_art_cache")
+
 try:
     media_collection.create_index([("filename", ASCENDING)], unique=True)
 except ServerSelectionTimeoutError:

@@ -23,7 +23,8 @@ from pywebpush import webpush, WebPushException
 from requests.status_codes import codes
 
 from .models import FileData
-from . import media_collection, push_collection, config, NOTIFICATION_TTL
+from . import media_collection, push_collection, cover_art_cache_collection, config, NOTIFICATION_TTL
+from .cover_art import notification_image_fields
 
 
 class _ProgressReader:
@@ -1480,23 +1481,44 @@ class Converter:
                 logging.error("Could not find private_key.pem")
                 return
 
+            source_path = None
+            if self._file_data is not None and self._file_data.filename:
+                source_path = self._file_data.filename
+            image_fields = notification_image_fields(
+                cover_art_cache_collection,
+                source_path,
+            )
+            if "image" in image_fields:
+                logging.info(
+                    "Push notification will include cover art for %s",
+                    source_path,
+                )
+
             # Send the push notifications
             for subscription in subscriptions:
                 logging.debug(f"Sending notification to {subscription}")
 
                 try:
+                    payload = {
+                        "title": title,
+                        "body": message,
+                        "icon": image_fields["icon"],
+                        "badge": image_fields["badge"],
+                        "url": "/",
+                        "requireInteraction": True,
+                    }
+                    if "image" in image_fields:
+                        payload["image"] = image_fields["image"]
+
+                    subscription_info = {
+                        key: value
+                        for key, value in subscription.items()
+                        if key != "_id"
+                    }
+
                     webpush(
-                        subscription_info=subscription,
-                        data=json.dumps(
-                            {
-                                "title": title,
-                                "body": message,
-                                "icon": "/icons/tools/converter/android-chrome-192x192-20260504.png",
-                                "badge": "/icons/tools/converter/badge-192x192-v2-0-2.png",
-                                "url": "/",
-                                "requireInteraction": True,
-                            }
-                        ),
+                        subscription_info=subscription_info,
+                        data=json.dumps(payload),
                         headers={"Urgency": "normal"},
                         ttl=NOTIFICATION_TTL,
                         vapid_private_key=str(private_key_path),
