@@ -13,7 +13,7 @@ from urllib.parse import quote, unquote
 
 QUALITY_TOKENS = re.compile(
     r"\b(bluray|blu-ray|webdl|web-dl|webrip|hdtv|remux|x264|x265|h264|h265|"
-    r"hevc|aac|dts|truehd|atmos|hdr|dv|2160p|1080p|720p|480p)\b",
+    r"hevc|aac|dts|truehd|atmos|hdr|dv|2160p|1080p|720p|480p|proper|repack)\b",
     re.IGNORECASE,
 )
 YEAR_IN_PARENS = re.compile(r"^(?P<title>.+?)\s*\((?P<year>19\d{2}|20\d{2})\)$")
