@@ -11,7 +11,7 @@ dnspython==2.8.0
 frozenlist==1.8.0
 http_ece==1.2.1
 idna==3.18
-media-cover-art @ git+https://github.com/schleising/media-cover-art.git@v0.1.0
+media-cover-art @ git+https://github.com/schleising/media-cover-art.git@v0.1.1
 multidict==6.7.1
 propcache==0.5.2
 py-vapid==1.9.4
