@@ -13,10 +13,9 @@ services:
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
       # Cover-art prefetch (media-cover-art). Hybrid metadata-only: do not set
-      # MEDIA_COVER_ART_CACHE_DIR. API keys via host env / compose .env
-      # (same pattern as SMB_* in docker-compose.yaml): SONARR_API_KEY,
-      # RADARR_API_KEY, TMDB_API_KEY. Optional: mount arr-keys.txt at
-      # /run/secrets/arr-keys.txt instead of env keys.
+      # MEDIA_COVER_ART_CACHE_DIR. Keys: SONARR_API_KEY / RADARR_API_KEY /
+      # TMDB_API_KEY from host env, or arr-keys.txt under ./src/secrets/
+      # (mounted at /src/secrets/arr-keys.txt via ./src:/src:ro).
       - SONARR_URL=http://steveds920:8989
       - RADARR_URL=http://steveds920:7878
       - SONARR_API_KEY=${SONARR_API_KEY:-}
