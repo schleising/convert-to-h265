@@ -27,6 +27,12 @@ class TaskScheduler:
         # Register signal handlers
         self._register_signal_handlers()
 
+        # Walker: construct CoverArtClient once for background ensure_posters
+        if os.getenv("FOLDER_WALKER") == "TRUE":
+            from .cover_art_prefetch import init_cover_art_client
+
+            init_cover_art_client()
+
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
         match sig:

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from .models import VideoInformation, FileData, FileInfo
 from . import media_collection
+from .cover_art_prefetch import ensure_posters_background
 
 
 class CodecDetector:
@@ -182,6 +183,8 @@ class CodecDetector:
 
         # List of bulk write operations to run
         bulk_write_operations = []
+        # Filenames newly upserted this walk (cover-art prefetch; not renames)
+        new_filenames: list[str] = []
 
         logging.info("Getting file encoding")
 
@@ -335,6 +338,7 @@ class CodecDetector:
                             upsert=True,
                         )
                     )
+                    new_filenames.append(file_info.filename)
                 else:
                     # ffprobe failed
                     logging.error(f"ffprobe failed for {file_info.filename}")
@@ -355,6 +359,8 @@ class CodecDetector:
                 logging.error("Could not connect to MongoDB.")
             else:
                 logging.info("Finished writing to MongoDB")
+                # Prefetch cover art off the walk thread (soft-fail inside helper)
+                ensure_posters_background(new_filenames)
         else:
             # There is no new data to write to MongoDB
             logging.info("No new data to write to MongoDB")

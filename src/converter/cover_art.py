@@ -1,98 +1,27 @@
 """Resolve Converter cover-art URLs for web push notifications.
 
-Cache keys must match website3 `tools/converter/art/identity.py`.
+Uses ``media_cover_art`` for path→cache-key identity and ready-record lookup
+(``get_ready_record`` → public ``remote_url``).
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from pathlib import Path
 from typing import Any
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
-QUALITY_TOKENS = re.compile(
-    r"\b(bluray|blu-ray|webdl|web-dl|webrip|hdtv|remux|x264|x265|h264|h265|"
-    r"hevc|aac|dts|truehd|atmos|hdr|dv|2160p|1080p|720p|480p|proper|repack)\b",
-    re.IGNORECASE,
+from media_cover_art import (
+    CoverArtClient,
+    CoverArtSettings,
+    cache_key_for_path,
+    parse_media_identity,
 )
-YEAR_IN_PARENS = re.compile(r"^(?P<title>.+?)\s*\((?P<year>19\d{2}|20\d{2})\)$")
-YEAR_AT_END = re.compile(r"^(?P<title>.+?)\s+(?P<year>19\d{2}|20\d{2})$")
 
 DEFAULT_ICON = "/icons/tools/converter/android-chrome-192x192-20260504.png"
 DEFAULT_BADGE = "/icons/tools/converter/badge-192x192-v2-0-2.png"
 # Absolute origin for notification fetches (OS/browser often has no tools-auth cookies).
 CONVERTER_PUBLIC_ORIGIN = "https://converter.schleising.net"
 ART_PATH_PREFIX = "/tools/converter/art"
-
-
-def normalize_title(value: str) -> str:
-    cleaned = QUALITY_TOKENS.sub(" ", value)
-    cleaned = re.sub(r"[._]+", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
-    return cleaned
-
-
-def _slug_for_cache(value: str) -> str:
-    slug = normalize_title(value)
-    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
-    return slug or "unknown"
-
-
-def _strip_quality_and_ext(name: str) -> str:
-    stem = Path(name).stem
-    cleaned = QUALITY_TOKENS.sub(" ", stem)
-    cleaned = re.sub(r"[._]+", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
-
-
-def _parse_title_year(folder_or_name: str) -> tuple[str, int | None]:
-    text = folder_or_name.strip()
-    year_match = YEAR_IN_PARENS.match(text)
-    if year_match is not None:
-        return year_match.group("title").strip(), int(year_match.group("year"))
-
-    year_match = YEAR_AT_END.match(text)
-    if year_match is not None:
-        return year_match.group("title").strip(), int(year_match.group("year"))
-
-    return text, None
-
-
-def _path_parts(source_path: str) -> list[str]:
-    normalized = unquote(source_path.replace("\\", "/")).strip("/")
-    return [part for part in normalized.split("/") if part]
-
-
-def cache_key_for_path(source_path: str) -> str | None:
-    """Return the cover_art_cache key for a media path, or None if unknown."""
-    parts = _path_parts(source_path)
-    lowered = [part.lower() for part in parts]
-
-    if "films" in lowered:
-        films_index = lowered.index("films")
-        basename = parts[-1] if parts else Path(source_path).name
-        folder: str | None = None
-        if films_index + 1 < len(parts) - 1:
-            folder = parts[films_index + 1]
-        if folder:
-            title, year = _parse_title_year(folder)
-        else:
-            title, year = _parse_title_year(_strip_quality_and_ext(basename))
-        cache_key = f"film:{_slug_for_cache(title)}"
-        if year is not None:
-            cache_key = f"{cache_key}:{year}"
-        return cache_key
-
-    if "tv" in lowered:
-        tv_index = lowered.index("tv")
-        show = "Unknown Show"
-        if tv_index + 1 < len(parts):
-            show = parts[tv_index + 1]
-        return f"tvshow:{_slug_for_cache(show)}"
-
-    return None
 
 
 def absolute_public_url(path_or_url: str) -> str:
@@ -124,25 +53,27 @@ def lookup_ready_art_url(
     if cover_art_cache_collection is None or not source_path:
         return None
 
-    cache_key = cache_key_for_path(source_path)
-    if cache_key is None:
+    if parse_media_identity(source_path).kind == "unknown":
         return None
 
+    cache_key = cache_key_for_path(source_path)
+
     try:
-        document = cover_art_cache_collection.find_one(
-            {"cache_key": cache_key, "status": "ready"},
-            projection=["cache_key", "local_path", "status", "remote_url"],
-        )
+        settings = CoverArtSettings.from_env()
+        with CoverArtClient(
+            settings, collection=cover_art_cache_collection
+        ) as client:
+            record = client.get_ready_record(source_path)
     except Exception as exc:  # noqa: BLE001 — push must not fail on art lookup
         logging.warning("Cover art lookup failed for %s: %s", source_path, exc)
         return None
 
-    if document is None:
+    if record is None or not record.remote_url:
         return None
 
-    remote_url = document.get("remote_url")
-    if isinstance(remote_url, str) and _is_public_https_url(remote_url.strip()):
-        return remote_url.strip()
+    remote_url = record.remote_url.strip()
+    if _is_public_https_url(remote_url):
+        return remote_url
 
     logging.debug(
         "No public HTTPS remote_url for %s (provider art may be LAN-only); "
