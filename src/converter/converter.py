@@ -1175,13 +1175,11 @@ class Converter:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
 
-                # Keep the original unless the converted file is at least 15% smaller
-                original_size = input_file_path.stat().st_size
-                converted_size = self._temporary_output_path.stat().st_size
-                compression_ratio = (
-                    1 - (converted_size / original_size) if original_size > 0 else 0.0
+                # Check that the file size has been reduced
+                file_size_reduced = (
+                    self._temporary_output_path.stat().st_size
+                    < input_file_path.stat().st_size
                 )
-                file_size_reduced = compression_ratio >= 0.15
 
                 # Update the file_data object
                 self._file_data.converting = False
@@ -1195,7 +1193,9 @@ class Converter:
                 self._file_data.end_conversion_time = self._utc_now()
                 self._file_data.percentage_complete = 0 if file_size_reduced else 100
                 self._file_data.current_size = (
-                    converted_size if file_size_reduced else original_size
+                    self._temporary_output_path.stat().st_size
+                    if file_size_reduced
+                    else input_file_path.stat().st_size
                 )
 
                 # Update the file in MongoDB
@@ -1241,12 +1241,12 @@ class Converter:
                     # Exit without swapping the converted file for the original
                     return
 
-                # Exit without swapping if compression is below the 15% threshold
+                # Exit without swapping the converted file for the original if the file size was not reduced
                 if not file_size_reduced:
                     # Send a notification
                     self.send_notification(
-                        "Insufficient Compression",
-                        f"{self._temporary_input_path.name}\n{compression_ratio * 100:.0f}%",
+                        "File Size not Reduced",
+                        f"{self._temporary_input_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%",
                     )
                     self._delete_temporary_files()
                     return
