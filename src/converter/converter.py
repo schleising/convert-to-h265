@@ -1489,7 +1489,7 @@ class Converter:
                 source_path,
             )
             if "image" in image_fields:
-                logging.info(
+                logging.debug(
                     "Push notification will include cover art for %s",
                     source_path,
                 )
