@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Read current inodes from disk and update media_collection.
 
-Filenames in MongoDB are stored as canonical paths (typically /Media/...).
-This script maps those paths onto the local filesystem using config.toml
-[path_map] (overridable with --path-from / --path-to), stats each file, and
-writes st_ino back onto the document.
+Filenames in MongoDB are stored under /Media. On the Mac Mini those files
+live under /Volumes/My Book/Media. This script maps the database path onto
+that local folder, stats each file, and writes st_ino back onto the document.
 
 All documents are processed so unique inode values are preserved, including
 deleted rows whose inode would collide with a live file. Use --dry-run to
@@ -12,7 +11,7 @@ preview changes without writing.
 
 Example:
     python src/update_inodes.py --dry-run
-    python src/update_inodes.py --path-to "/Volumes/My Book/Media"
+    python src/update_inodes.py
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ import argparse
 import logging
 import os
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,26 +35,17 @@ from pymongo.errors import (
     ServerSelectionTimeoutError,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "src/config.toml"
 DEFAULT_DB_URL = "mongodb://macmini2.home.arpa:27017"
 DEFAULT_DB_NAME = "media"
 DEFAULT_DB_COLLECTION = "media_collection"
+DB_MEDIA_ROOT = Path("/Media")
+LOCAL_MEDIA_ROOT = Path("/Volumes/My Book/Media")
 
 
 @dataclass(frozen=True)
 class CliArgs:
     dry_run: bool
-    config: Path
-    path_from: Path | None
-    path_to: Path | None
     verbose: bool
-
-
-@dataclass
-class PathMap:
-    source: Path
-    destination: Path
 
 
 @dataclass
@@ -75,48 +64,13 @@ def _configure_logging(verbose: bool) -> None:
     logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def _toml_mapping(value: object) -> dict[str, object]:
-    if not isinstance(value, dict):
-        return {}
-    mapping: dict[str, object] = {}
-    for key, item in value.items():
-        if isinstance(key, str):
-            mapping[key] = item
-    return mapping
-
-
-def _toml_path(value: object, default: str) -> Path:
-    if isinstance(value, str) and value:
-        return Path(value)
-    return Path(default)
-
-
-def _optional_path(value: object) -> Path | None:
-    if value is None:
-        return None
-    if isinstance(value, Path):
-        return value
-    raise TypeError(f"Expected Path or None, got {type(value).__name__}")
-
-
-def _load_path_map(config_path: Path) -> PathMap:
-    with config_path.open("rb") as config_file:
-        raw_config = _toml_mapping(tomllib.load(config_file))
-
-    path_map = _toml_mapping(raw_config.get("path_map", {}))
-    return PathMap(
-        source=_toml_path(path_map.get("from"), "/Media"),
-        destination=_toml_path(path_map.get("to"), "/Media"),
-    )
-
-
-def _resolve_local_path(filename: str, path_map: PathMap) -> Path:
+def _resolve_local_path(filename: str) -> Path:
     source_path = Path(filename)
     try:
-        relative_path = source_path.relative_to(path_map.source)
+        relative_path = source_path.relative_to(DB_MEDIA_ROOT)
     except ValueError:
         return source_path
-    return path_map.destination / relative_path
+    return LOCAL_MEDIA_ROOT / relative_path
 
 
 def _as_object_id(value: object) -> ObjectId | None:
@@ -147,18 +101,11 @@ def _stat_inode(path: Path) -> int | None:
         return None
 
 
-def _locate_file(filename: str, path_map: PathMap) -> tuple[Path | None, int | None]:
-    mapped_path = _resolve_local_path(filename, path_map)
+def _locate_file(filename: str) -> tuple[Path | None, int | None]:
+    mapped_path = _resolve_local_path(filename)
     disk_inode = _stat_inode(mapped_path)
     if disk_inode is not None:
         return mapped_path, disk_inode
-
-    original_path = Path(filename)
-    if original_path != mapped_path:
-        disk_inode = _stat_inode(original_path)
-        if disk_inode is not None:
-            return original_path, disk_inode
-
     return None, None
 
 
@@ -176,9 +123,7 @@ def _connect_collection() -> Collection[dict[str, object]]:
     )
 
 
-def _load_records(
-    collection: Collection[dict[str, object]], path_map: PathMap
-) -> list[Record]:
+def _load_records(collection: Collection[dict[str, object]]) -> list[Record]:
     records: list[Record] = []
     for document in collection.find({}, {"filename": 1, "inode": 1}):
         document_id = _as_object_id(document.get("_id"))
@@ -189,7 +134,7 @@ def _load_records(
             )
             continue
 
-        local_path, disk_inode = _locate_file(filename, path_map)
+        local_path, disk_inode = _locate_file(filename)
         records.append(
             Record(
                 document_id=document_id,
@@ -329,38 +274,14 @@ def _parse_args() -> CliArgs:
         help="Preview inode changes without writing to MongoDB.",
     )
     parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path(os.getenv("CONVERTER_CONFIG_PATH", str(DEFAULT_CONFIG_PATH))),
-        help="Path to config.toml (used for [path_map]).",
-    )
-    parser.add_argument(
-        "--path-from",
-        type=Path,
-        default=None,
-        help="Canonical path prefix stored in MongoDB (overrides config [path_map].from).",
-    )
-    parser.add_argument(
-        "--path-to",
-        type=Path,
-        default=None,
-        help="Local filesystem prefix (overrides config [path_map].to).",
-    )
-    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
         help="Log every inode change.",
     )
     parsed = parser.parse_args()
-    config = parsed.config
-    if not isinstance(config, Path):
-        raise TypeError("config must be a Path")
     return CliArgs(
         dry_run=bool(parsed.dry_run),
-        config=config,
-        path_from=_optional_path(parsed.path_from),
-        path_to=_optional_path(parsed.path_to),
         verbose=bool(parsed.verbose),
     )
 
@@ -369,28 +290,11 @@ def main() -> int:
     args = _parse_args()
     _configure_logging(verbose=args.verbose)
 
-    if not args.config.is_file():
-        logging.error("Config file not found: %s", args.config)
-        return 1
-
-    path_map = _load_path_map(args.config)
-    if args.path_from is not None:
-        path_map.source = args.path_from
-    if args.path_to is not None:
-        path_map.destination = args.path_to
-
-    env_path_from = os.getenv("CONVERTER_PATH_MAP_FROM")
-    env_path_to = os.getenv("CONVERTER_PATH_MAP_TO")
-    if args.path_from is None and env_path_from is not None:
-        path_map.source = Path(env_path_from)
-    if args.path_to is None and env_path_to is not None:
-        path_map.destination = Path(env_path_to)
-
-    logging.info("Path map: %s -> %s", path_map.source, path_map.destination)
+    logging.info("Path map: %s -> %s", DB_MEDIA_ROOT, LOCAL_MEDIA_ROOT)
 
     try:
         collection = _connect_collection()
-        records = _load_records(collection, path_map=path_map)
+        records = _load_records(collection)
     except ServerSelectionTimeoutError:
         logging.error("Could not connect to MongoDB")
         return 1
