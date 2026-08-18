@@ -6,8 +6,10 @@ live under /Volumes/My Book/Media. This script maps the database path onto
 that local folder, stats each file, and writes st_ino back onto the document.
 
 All documents are processed so unique inode values are preserved, including
-deleted rows whose inode would collide with a live file. Use --dry-run to
-preview changes without writing.
+deleted rows whose inode would collide with a live file. Two database rows
+for the same path with different Unicode normalization (NFC vs NFD) are
+treated as one file: the on-disk name is kept and the duplicate is marked
+deleted. Use --dry-run to preview changes without writing.
 
 Example:
     python src/update_inodes.py --dry-run
@@ -20,6 +22,8 @@ import argparse
 import logging
 import os
 import sys
+import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +44,7 @@ DEFAULT_DB_NAME = "media"
 DEFAULT_DB_COLLECTION = "media_collection"
 DB_MEDIA_ROOT = Path("/Media")
 LOCAL_MEDIA_ROOT = Path("/Volumes/My Book/Media")
+_directory_entries: dict[Path, tuple[Path, ...]] = {}
 
 
 @dataclass(frozen=True)
@@ -55,8 +60,11 @@ class Record:
     inode: int | None
     local_path: Path | None
     disk_inode: int | None
+    deleted: bool = False
     target_inode: int | None = None
+    mark_deleted: bool = False
     duplicate_disk_inode: bool = False
+    unicode_duplicate: bool = False
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -101,6 +109,36 @@ def _stat_inode(path: Path) -> int | None:
         return None
 
 
+def _iter_dir(parent: Path) -> tuple[Path, ...]:
+    cached = _directory_entries.get(parent)
+    if cached is not None:
+        return cached
+    try:
+        entries = tuple(parent.iterdir())
+    except OSError as exc:
+        logging.error("Could not list %s: %s", parent, exc)
+        entries = ()
+    _directory_entries[parent] = entries
+    return entries
+
+
+def _filesystem_native_path(path: Path) -> Path:
+    target = unicodedata.normalize("NFC", path.name)
+    for entry in _iter_dir(path.parent):
+        if unicodedata.normalize("NFC", entry.name) == target:
+            return entry
+    return path
+
+
+def _native_db_filename(local_path: Path) -> str | None:
+    native_local = _filesystem_native_path(local_path)
+    try:
+        relative_path = native_local.relative_to(LOCAL_MEDIA_ROOT)
+    except ValueError:
+        return None
+    return (DB_MEDIA_ROOT / relative_path).as_posix()
+
+
 def _locate_file(filename: str) -> tuple[Path | None, int | None]:
     mapped_path = _resolve_local_path(filename)
     disk_inode = _stat_inode(mapped_path)
@@ -125,7 +163,7 @@ def _connect_collection() -> Collection[dict[str, object]]:
 
 def _load_records(collection: Collection[dict[str, object]]) -> list[Record]:
     records: list[Record] = []
-    for document in collection.find({}, {"filename": 1, "inode": 1}):
+    for document in collection.find({}, {"filename": 1, "inode": 1, "deleted": 1}):
         document_id = _as_object_id(document.get("_id"))
         filename = _as_str(document.get("filename"))
         if document_id is None or filename is None:
@@ -142,6 +180,7 @@ def _load_records(collection: Collection[dict[str, object]]) -> list[Record]:
                 inode=_as_int(document.get("inode")),
                 local_path=local_path,
                 disk_inode=disk_inode,
+                deleted=document.get("deleted") is True,
             )
         )
 
@@ -154,22 +193,48 @@ def _next_unused_inode(used: set[int], candidate: int) -> int:
     return candidate
 
 
-def _allocate_target_inodes(records: list[Record]) -> None:
-    used: set[int] = set()
+def _is_unicode_duplicate(left: str, right: str) -> bool:
+    return unicodedata.normalize("NFC", left) == unicodedata.normalize("NFC", right)
 
-    for record in sorted(records, key=lambda item: item.filename):
-        if record.disk_inode is None:
-            continue
-        if record.disk_inode in used:
-            record.duplicate_disk_inode = True
-            logging.error(
-                "Duplicate disk inode %s for %s; another file already claimed it",
-                record.disk_inode,
-                record.filename,
+
+def _allocate_target_inodes(records: list[Record]) -> None:
+    by_inode: dict[int, list[Record]] = defaultdict(list)
+    for record in records:
+        if record.disk_inode is not None:
+            by_inode[record.disk_inode].append(record)
+
+    used: set[int] = set()
+    for disk_inode, group in by_inode.items():
+        native_name: str | None = None
+        for record in group:
+            if record.local_path is not None:
+                native_name = _native_db_filename(record.local_path)
+                if native_name is not None:
+                    break
+
+        group.sort(
+            key=lambda item: (
+                0 if native_name is not None and item.filename == native_name else 1,
+                item.filename,
             )
-            continue
-        record.target_inode = record.disk_inode
-        used.add(record.disk_inode)
+        )
+        keeper = group[0]
+        keeper.target_inode = disk_inode
+        used.add(disk_inode)
+
+        for record in group[1:]:
+            record.duplicate_disk_inode = True
+            if _is_unicode_duplicate(keeper.filename, record.filename):
+                record.unicode_duplicate = True
+                record.mark_deleted = True
+                logging.warning(
+                    "Unicode duplicate inode %s; keeping on-disk name and marking the other deleted",
+                    disk_inode,
+                )
+            else:
+                logging.error("Duplicate disk inode %s", disk_inode)
+            logging.warning("  kept:    %s", keeper.filename)
+            logging.warning("  skipped: %s", record.filename)
 
     for record in records:
         if record.target_inode is not None:
@@ -186,9 +251,12 @@ def _allocate_target_inodes(records: list[Record]) -> None:
         record.target_inode = next_temp
         used.add(next_temp)
         next_temp -= 1
-        logging.warning(
-            "Assigned synthetic inode %s to %s", record.target_inode, record.filename
-        )
+        if not record.unicode_duplicate:
+            logging.warning(
+                "Assigned synthetic inode %s to %s",
+                record.target_inode,
+                record.filename,
+            )
 
 
 def _pending_updates(records: list[Record]) -> list[Record]:
@@ -196,7 +264,9 @@ def _pending_updates(records: list[Record]) -> list[Record]:
     for record in records:
         if record.target_inode is None:
             continue
-        if record.inode != record.target_inode:
+        inode_changed = record.inode != record.target_inode
+        delete_changed = record.mark_deleted and not record.deleted
+        if inode_changed or delete_changed:
             pending.append(record)
     return pending
 
@@ -233,7 +303,12 @@ def _apply_updates(
     # Two-phase write so unique inode indexes are not violated mid-update
     # (including A/B inode swaps). Temporary values must not collide with
     # inodes that documents outside this batch will keep.
-    pending_ids = {record.document_id for record in pending}
+    inode_pending = [
+        record
+        for record in pending
+        if record.target_inode is not None and record.inode != record.target_inode
+    ]
+    pending_ids = {record.document_id for record in inode_pending}
     used_temps = {
         record.inode
         for record in records
@@ -243,7 +318,7 @@ def _apply_updates(
     temp_operations: list[UpdateOne] = []
     next_temp = -1
 
-    for record in pending:
+    for record in inode_pending:
         temp_inode = _next_unused_inode(used_temps, next_temp)
         used_temps.add(temp_inode)
         next_temp = temp_inode - 1
@@ -258,8 +333,11 @@ def _apply_updates(
         target_inode = record.target_inode
         if target_inode is None:
             continue
+        fields: dict[str, object] = {"inode": target_inode}
+        if record.mark_deleted:
+            fields["deleted"] = True
         final_operations.append(
-            UpdateOne({"_id": record.document_id}, {"$set": {"inode": target_inode}})
+            UpdateOne({"_id": record.document_id}, {"$set": fields})
         )
     return _bulk_update(collection, final_operations)
 
@@ -316,10 +394,13 @@ def main() -> int:
     missing = len(records) - found
     unchanged = len(records) - len(pending)
     duplicate_disk = sum(1 for record in records if record.duplicate_disk_inode)
+    unicode_duplicates = sum(1 for record in records if record.unicode_duplicate)
     synthetic = sum(
         1
         for record in pending
-        if record.target_inode is not None and record.target_inode < 0
+        if record.target_inode is not None
+        and record.target_inode < 0
+        and not record.unicode_duplicate
     )
 
     logging.info("Documents: %s", len(records))
@@ -329,6 +410,10 @@ def main() -> int:
     logging.info("Inodes to update: %s", len(pending))
     if duplicate_disk:
         logging.warning("Files with duplicate disk inodes: %s", duplicate_disk)
+    if unicode_duplicates:
+        logging.warning(
+            "Unicode duplicate documents to mark deleted: %s", unicode_duplicates
+        )
     if synthetic:
         logging.warning("Documents assigned synthetic inodes: %s", synthetic)
 
