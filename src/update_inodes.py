@@ -391,7 +391,9 @@ def main() -> int:
     pending = _pending_updates(records)
 
     found = sum(1 for record in records if record.disk_inode is not None)
-    missing = len(records) - found
+    missing_records = [record for record in records if record.disk_inode is None]
+    missing_deleted = [record for record in missing_records if record.deleted]
+    missing_not_deleted = [record for record in missing_records if not record.deleted]
     unchanged = len(records) - len(pending)
     duplicate_disk = sum(1 for record in records if record.duplicate_disk_inode)
     unicode_duplicates = sum(1 for record in records if record.unicode_duplicate)
@@ -405,7 +407,9 @@ def main() -> int:
 
     logging.info("Documents: %s", len(records))
     logging.info("Files found on disk: %s", found)
-    logging.info("Files missing on disk: %s", missing)
+    logging.info("Files missing on disk: %s", len(missing_records))
+    logging.info("  already deleted in DB: %s", len(missing_deleted))
+    logging.info("  not marked deleted: %s", len(missing_not_deleted))
     logging.info("Unchanged: %s", unchanged)
     logging.info("Inodes to update: %s", len(pending))
     if duplicate_disk:
@@ -416,6 +420,9 @@ def main() -> int:
         )
     if synthetic:
         logging.warning("Documents assigned synthetic inodes: %s", synthetic)
+
+    for record in sorted(missing_not_deleted, key=lambda item: item.filename):
+        logging.warning("Missing and not deleted: %s", record.filename)
 
     if args.verbose:
         for record in pending:
