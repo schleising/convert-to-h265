@@ -10,6 +10,13 @@ from pydantic import ValidationError
 from .models import VideoInformation, FileData, FileInfo
 from . import media_collection
 from .cover_art_prefetch import ensure_posters_background
+from .unicode_paths import (
+    clear_directory_cache,
+    find_equivalent_path,
+    normalize_path,
+    paths_equivalent,
+    resolve_filesystem_path,
+)
 
 
 class CodecDetector:
@@ -68,113 +75,91 @@ class CodecDetector:
             self.connection_successful = True
 
             # Remove files that have been deleted
+            clear_directory_cache()
             self._update_changed_files()
 
+    def _set_filename_in_db(
+        self, inode: int, old_filename: str, new_filename: str
+    ) -> bool:
+        try:
+            media_collection.update_one(
+                {"inode": inode},
+                {"$set": {"filename": new_filename, "deleted": False}},
+            )
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB")
+            return False
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB")
+            return False
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+            return False
+
+        logging.info("Updated filename in database from %s to %s", old_filename, new_filename)
+        return True
+
+    def _mark_deleted_in_db(self, filename: str) -> bool:
+        try:
+            media_collection.update_one(
+                {"filename": filename}, {"$set": {"deleted": True}}
+            )
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB")
+            return False
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB")
+            return False
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+            return False
+        return True
+
     def _update_changed_files(self) -> None:
-        # If files have been deleted, check whether the inode is still in the database
-        # If it is not, set the deleted field to True in the database
-        # If it is, update the filename to the new filename
-        missing_from_drive = (
-            file_info.filename for file_info in self._list_from_db
-        ) - self._files.keys()
+        # If files have been deleted, check whether the inode is still on disk.
+        # If it is, update the filename to the on-disk path (including NFC/NFD fixes).
+        drive_paths = set(self._files.keys())
+        drive_by_inode = {info.inode: info for info in self._files.values()}
+        pending_db_files: list[FileInfo] = []
 
-        if missing_from_drive:
-            # There are files that have either been deleted or renamed
-            logging.info("Updating deleted or renamed files in MongoDB")
+        for db_file_info in self._list_from_db:
+            if db_file_info.filename in drive_paths:
+                continue
 
-            for file in missing_from_drive:
-                # Get the inode of the file from the list of FileInfo objects
-                db_file_info = None
-                for info in self._list_from_db:
-                    if info.filename == file:
-                        db_file_info = info
-                        break
+            equivalent_path = find_equivalent_path(db_file_info.filename, drive_paths)
+            if equivalent_path is not None:
+                drive_file_info = self._files[equivalent_path]
+                if not paths_equivalent(
+                    db_file_info.filename, drive_file_info.filename
+                ):
+                    if self._set_filename_in_db(
+                        db_file_info.inode,
+                        db_file_info.filename,
+                        drive_file_info.filename,
+                    ):
+                        db_file_info.filename = drive_file_info.filename
+                continue
 
-                if db_file_info is None:
-                    # Log the error
-                    logging.error(f"File info not found for {file}")
+            pending_db_files.append(db_file_info)
 
-                    # Could not find the file info, skip it
-                    continue
+        if not pending_db_files:
+            return
 
-                drive_file_info = None
+        logging.info("Updating deleted or renamed files in MongoDB")
 
-                # Check if the inode is in the current list of files
-                for info in self._files.values():
-                    if info.inode == db_file_info.inode:
-                        drive_file_info = info
-                        break
+        for db_file_info in pending_db_files:
+            drive_file_info = drive_by_inode.get(db_file_info.inode)
+            if drive_file_info is None:
+                logging.info("File deleted: %s", db_file_info.filename)
+                self._mark_deleted_in_db(db_file_info.filename)
+                continue
 
-                if drive_file_info is None:
-                    # The inode is not in the current list of files, so the file has been deleted
-                    logging.info(f"File deleted: {file}")
-
-                    # Set the deleted field to True in the database
-                    try:
-                        media_collection.update_one(
-                            {"filename": file}, {"$set": {"deleted": True}}
-                        )
-                    except ServerSelectionTimeoutError:
-                        logging.error("Could not connect to MongoDB")
-                        continue
-                    except NetworkTimeout:
-                        logging.error("Could not connect to MongoDB")
-                        continue
-                    except AutoReconnect:
-                        logging.error("Could not connect to MongoDB.")
-                        continue
-
-                    # Move to the next file
-                    continue
-
-                # Check if the inode is still in the database
-                try:
-                    data_from_db = media_collection.find_one(
-                        {"inode": db_file_info.inode}, {"filename": 1, "_id": 0}
-                    )
-                except ServerSelectionTimeoutError:
-                    logging.error("Could not connect to MongoDB")
-                    continue
-                except NetworkTimeout:
-                    logging.error("Could not connect to MongoDB")
-                    continue
-                except AutoReconnect:
-                    logging.error("Could not connect to MongoDB.")
-                    continue
-                else:
-                    # Construct a FileInfo object
-                    if data_from_db:
-                        # The inode is still in the database, so the file has been renamed
-                        old_filename = data_from_db["filename"]
-                        new_filename = drive_file_info.filename
-
-                        logging.debug(
-                            f"File renamed from {old_filename} to {new_filename}"
-                        )
-
-                        # Update the filename in the database
-                        try:
-                            media_collection.update_one(
-                                {"inode": db_file_info.inode},
-                                {"$set": {"filename": new_filename, "deleted": False}},
-                            )
-
-                            # Update the filename in the local list
-                            db_file_info.filename = new_filename
-
-                            # Log the update
-                            logging.info(
-                                f"Updated filename in database from {old_filename} to {new_filename}"
-                            )
-                        except ServerSelectionTimeoutError:
-                            logging.error("Could not connect to MongoDB")
-                            continue
-                        except NetworkTimeout:
-                            logging.error("Could not connect to MongoDB")
-                            continue
-                        except AutoReconnect:
-                            logging.error("Could not connect to MongoDB.")
-                            continue
+            if self._set_filename_in_db(
+                db_file_info.inode,
+                db_file_info.filename,
+                drive_file_info.filename,
+            ):
+                db_file_info.filename = drive_file_info.filename
 
     def get_file_encoding(self) -> None:
         # Only run if the connection to MongoDB was successful
@@ -189,160 +174,134 @@ class CodecDetector:
         logging.info("Getting file encoding")
 
         filenames_from_db = {file_info.filename for file_info in self._list_from_db}
+        normalized_filenames_from_db = {
+            normalize_path(filename) for filename in filenames_from_db
+        }
 
         for file_info in self._files.values():
-            if file_info.filename not in filenames_from_db:
-                # File is not in the database, so we need to get the encoding
+            if file_info.filename in filenames_from_db:
+                continue
+            if normalize_path(file_info.filename) in normalized_filenames_from_db:
+                continue
 
-                # Stat the file
-                file_stat = Path(file_info.filename).stat()
+            probe_path = resolve_filesystem_path(Path(file_info.filename))
 
-                # Get the file size
-                file_size = file_stat.st_size
+            file_stat = probe_path.stat()
+            file_size = file_stat.st_size
+            file_inode = file_stat.st_ino
 
-                # Get the file inode
-                file_inode = file_stat.st_ino
+            ffprobe_command = list(self._ffprobe_base_command)
+            ffprobe_command.append(probe_path.as_posix())
 
-                # Construct the ffprobe command
-                ffprobe_command = list(self._ffprobe_base_command)
-                ffprobe_command.append(file_info.filename)
+            ffprobe_output = subprocess.run(
+                ffprobe_command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
 
-                # Run ffprobe
-                ffprobe_output = subprocess.run(
-                    ffprobe_command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
+            conversion_required = True
+            video_stream_count = 0
+            audio_stream_count = 0
+            subtitle_stream_count = 0
+            first_video_stream = None
+            first_audio_stream = None
+            first_eng_audio_stream = None
+            first_und_audio_stream = None
+            first_subtitle_stream = None
+
+            if ffprobe_output.returncode == 0:
+                try:
+                    video_information = VideoInformation.parse_raw(
+                        ffprobe_output.stdout
+                    )
+                except ValidationError as e:
+                    logging.error(f"Error parsing {file_info.filename}")
+                    logging.error(e)
+                    continue
+
+                for stream in video_information.streams:
+                    if stream.codec_type == "video":
+                        if first_video_stream is None:
+                            first_video_stream = stream.index
+                        video_stream_count += 1
+
+                    elif stream.codec_type == "audio":
+                        if first_audio_stream is None:
+                            first_audio_stream = stream.index
+
+                        if stream.tags:
+                            if stream.tags.language == "eng":
+                                if first_eng_audio_stream is None:
+                                    first_eng_audio_stream = stream.index
+
+                            if stream.tags.language == "und":
+                                if first_und_audio_stream is None:
+                                    first_und_audio_stream = stream.index
+
+                        audio_stream_count += 1
+
+                    elif stream.codec_type == "subtitle":
+                        if first_subtitle_stream is None:
+                            first_subtitle_stream = stream.index
+                        subtitle_stream_count += 1
+
+                if first_video_stream is None:
+                    first_video_stream = 0
+
+                if first_eng_audio_stream is not None:
+                    first_audio_stream = first_eng_audio_stream
+                elif first_und_audio_stream is not None:
+                    first_audio_stream = first_und_audio_stream
+
+                if first_audio_stream is None:
+                    first_audio_stream = 1
+
+                file_data = FileData(
+                    filename=file_info.filename,
+                    inode=file_inode,
+                    deleted=False,
+                    video_information=video_information,
+                    conversion_required=conversion_required,
+                    converting=False,
+                    converted=False,
+                    conversion_error=False,
+                    conversion_error_message=None,
+                    copying=False,
+                    percentage_complete=0,
+                    start_copy_time=None,
+                    start_conversion_time=None,
+                    end_conversion_time=None,
+                    overwrite_in_progress=False,
+                    temp_output_path=None,
+                    backup_path=None,
+                    video_streams=video_stream_count,
+                    audio_streams=audio_stream_count,
+                    subtitle_streams=subtitle_stream_count,
+                    first_video_stream=first_video_stream,
+                    first_audio_stream=first_audio_stream,
+                    first_subtitle_stream=first_subtitle_stream,
+                    pre_conversion_size=file_size,
+                    current_size=file_size,
+                    backend_name="None",
                 )
 
-                # Set the default values
-                conversion_required = True
-                video_stream_count = 0
-                audio_stream_count = 0
-                subtitle_stream_count = 0
-                first_video_stream = None
-                first_audio_stream = None
-                first_eng_audio_stream = None
-                first_und_audio_stream = None
-                first_subtitle_stream = None
-
-                if ffprobe_output.returncode == 0:
-                    # ffprobe ran successfully
-                    try:
-                        # Parse the output from ffprobe
-                        video_information = VideoInformation.parse_raw(
-                            ffprobe_output.stdout
-                        )
-                    except ValidationError as e:
-                        # There was an error parsing the output from ffprobe
-                        logging.error(f"Error parsing {file_info.filename}")
-                        logging.error(e)
-                        continue
-
-                    for stream in video_information.streams:
-                        # Loop through the streams in the video information
-                        if stream.codec_type == "video":
-                            # If the first video stream has not been set, set it to the current stream
-                            if first_video_stream is None:
-                                first_video_stream = stream.index
-
-                            # Stream is a video stream so increment the video stream count
-                            video_stream_count += 1
-
-                        elif stream.codec_type == "audio":
-                            # If the first audio stream has not been set, set it to the current stream
-                            if first_audio_stream is None:
-                                first_audio_stream = stream.index
-
-                            # Check if the audio stream in in English
-                            if stream.tags:
-                                if stream.tags.language == "eng":
-                                    # If the first audio stream has not been set, set it to the current stream
-                                    if first_eng_audio_stream is None:
-                                        first_eng_audio_stream = stream.index
-
-                                # Check if the audio stream is undefined
-                                if stream.tags.language == "und":
-                                    # If the first audio stream has not been set, set it to the current stream
-                                    if first_und_audio_stream is None:
-                                        first_und_audio_stream = stream.index
-
-                            # Stream is an audio stream so increment the audio stream count
-                            audio_stream_count += 1
-
-                        elif stream.codec_type == "subtitle":
-                            # If the first subtitle stream has not been set, set it to the current stream
-                            if first_subtitle_stream is None:
-                                first_subtitle_stream = stream.index
-
-                            # Stream is a subtitle stream so increment the subtitle stream count
-                            subtitle_stream_count += 1
-
-                    # Set the first video and audio stream to safe values if they are None
-                    if first_video_stream is None:
-                        first_video_stream = 0
-
-                    # Set the first audio stream to the first English audio stream if it exists,
-                    # otherwise set it to the first undefined audio stream.
-                    # If neither exist, leave it as the first audio stream found
-                    if first_eng_audio_stream is not None:
-                        first_audio_stream = first_eng_audio_stream
-                    elif first_und_audio_stream is not None:
-                        first_audio_stream = first_und_audio_stream
-
-                    # If the first audio stream is still None, set it to 1
-                    if first_audio_stream is None:
-                        first_audio_stream = 1
-
-                    # Create a FileData object
-                    file_data = FileData(
-                        filename=file_info.filename,
-                        inode=file_inode,
-                        deleted=False,
-                        video_information=video_information,
-                        conversion_required=conversion_required,
-                        converting=False,
-                        converted=False,
-                        conversion_error=False,
-                        conversion_error_message=None,
-                        copying=False,
-                        percentage_complete=0,
-                        start_copy_time=None,
-                        start_conversion_time=None,
-                        end_conversion_time=None,
-                        overwrite_in_progress=False,
-                        temp_output_path=None,
-                        backup_path=None,
-                        video_streams=video_stream_count,
-                        audio_streams=audio_stream_count,
-                        subtitle_streams=subtitle_stream_count,
-                        first_video_stream=first_video_stream,
-                        first_audio_stream=first_audio_stream,
-                        first_subtitle_stream=first_subtitle_stream,
-                        pre_conversion_size=file_size,
-                        current_size=file_size,
-                        backend_name="None",
-                    )
-
-                    # Log whether the file needs to be converted
-                    if conversion_required:
-                        logging.info(f"{file_info.filename}: CONVERT")
-                    else:
-                        logging.info(f"{file_info.filename}: OK")
-
-                    # Append the FileData object to the list of bulk write operations
-                    bulk_write_operations.append(
-                        UpdateOne(
-                            {"filename": file_info.filename},
-                            {"$set": file_data.model_dump()},
-                            upsert=True,
-                        )
-                    )
-                    new_filenames.append(file_info.filename)
+                if conversion_required:
+                    logging.info(f"{file_info.filename}: CONVERT")
                 else:
-                    # ffprobe failed
-                    logging.error(f"ffprobe failed for {file_info.filename}")
-                    logging.error(ffprobe_output.stderr)
+                    logging.info(f"{file_info.filename}: OK")
+
+                bulk_write_operations.append(
+                    UpdateOne(
+                        {"filename": file_info.filename},
+                        {"$set": file_data.model_dump()},
+                        upsert=True,
+                    )
+                )
+                new_filenames.append(file_info.filename)
+            else:
+                logging.error(f"ffprobe failed for {file_info.filename}")
+                logging.error(ffprobe_output.stderr)
 
         if bulk_write_operations:
             # There is new data to write to MongoDB

@@ -25,6 +25,7 @@ from requests.status_codes import codes
 from .models import FileData
 from . import media_collection, push_collection, cover_art_cache_collection, config, NOTIFICATION_TTL
 from .cover_art import notification_image_fields
+from .unicode_paths import resolve_filesystem_path
 
 
 class _ProgressReader:
@@ -95,9 +96,9 @@ class Converter:
         try:
             relative_path = source_path.relative_to(source_root)
         except ValueError:
-            return source_path
+            return resolve_filesystem_path(source_path)
 
-        return destination_root / relative_path
+        return resolve_filesystem_path(destination_root / relative_path)
 
     def _get_first_video_height(self) -> int | None:
         if self._file_data is None:

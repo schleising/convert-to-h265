@@ -3,6 +3,7 @@ import logging
 
 from . import config
 from .models import FileInfo
+from .unicode_paths import clear_directory_cache, normalize_path
 
 
 class FolderWalker:
@@ -23,9 +24,24 @@ class FolderWalker:
         self._files: list[FileInfo] = []
 
     def walk_folders(self) -> None:
-        # Walk each path
+        clear_directory_cache()
         for path in self._paths:
             self._walk(path)
+
+        seen_normalized_paths: set[str] = set()
+        files_dict: dict[str, FileInfo] = {}
+        for file_info in self._files:
+            normalized_path = normalize_path(file_info.filename)
+            if normalized_path in seen_normalized_paths:
+                logging.warning(
+                    "Skipping duplicate Unicode path during walk: %s",
+                    file_info.filename,
+                )
+                continue
+            seen_normalized_paths.add(normalized_path)
+            files_dict[file_info.filename] = file_info
+
+        self.files_dict = files_dict
 
     def _walk(self, path: Path) -> None:
         for file in path.iterdir():
@@ -58,6 +74,3 @@ class FolderWalker:
 
                 # If it's a file and it's a video file, add it to the list of files to find the encoding of
                 self._files.append(file_info)
-
-        # Turn the list of files into a dict with filename as the key
-        self.files_dict = {file_info.filename: file_info for file_info in self._files}
