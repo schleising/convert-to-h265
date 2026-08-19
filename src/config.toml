@@ -14,8 +14,8 @@
     # Folder to backup converted files to be checked before deletion
     backup = "/Media/Backup"
 
-    # Temporary folder for conversions
-    conversions = "/Conversions"
+    # Temporary folder for conversions (same APFS volume as library on Mac Mini)
+    conversions = "/Media/Conversions"
 
 # Schedule definitions
 [schedule]

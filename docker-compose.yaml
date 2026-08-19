@@ -1,3 +1,5 @@
+# Mac Mini deployment: walker + converter share one APFS media mount.
+# Set MEDIA_HOST_PATH to the SSD mount (without /Media suffix), e.g. /Volumes/MySSD
 services:
   walker-1:
     build: walker
@@ -6,7 +8,7 @@ services:
     environment:
       - FOLDER_WALKER=TRUE
       - BACKEND_NAME=Walker-1
-      - DB_URL=mongodb://macmini2.home.arpa:27017/
+      - DB_URL=mongodb://host.docker.internal:27017/
       - DB_NAME=media
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
@@ -14,14 +16,14 @@ services:
       # MEDIA_COVER_ART_CACHE_DIR. Keys: SONARR_API_KEY / RADARR_API_KEY /
       # TMDB_API_KEY from host env, or arr-keys.txt under ./src/secrets/
       # (mounted at /src/secrets/arr-keys.txt via ./src:/src:ro).
-      - SONARR_URL=http://macmini2.home.arpa:8989
-      - RADARR_URL=http://macmini2.home.arpa:7878
+      - SONARR_URL=http://host.docker.internal:8989
+      - RADARR_URL=http://host.docker.internal:7878
       - SONARR_API_KEY=${SONARR_API_KEY:-}
       - RADARR_API_KEY=${RADARR_API_KEY:-}
       - TMDB_API_KEY=${TMDB_API_KEY:-}
     volumes:
       - ./src:/src:ro
-      - /Volumes/My Book/Media/:/Media:rw
+      - ${MEDIA_HOST_PATH:-/Volumes/Media}/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -44,8 +46,7 @@ services:
       - PUSH_COLLECTION=push_subscriptions
     volumes:
       - ./src:/src:ro
-      - converter_volume:/Conversions:rw
-      - /Volumes/My Book/Media/:/Media:rw
+      - ${MEDIA_HOST_PATH:-/Volumes/Media}/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -54,6 +55,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  converter_volume:

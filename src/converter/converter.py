@@ -340,6 +340,169 @@ class Converter:
         if last_error is not None:
             raise last_error
 
+    @staticmethod
+    def _paths_share_device(left: Path, right: Path) -> bool:
+        left_device = left.stat().st_dev
+        if right.exists():
+            return left_device == right.stat().st_dev
+        return left_device == right.parent.stat().st_dev
+
+    def _fsync_path(self, path: Path) -> None:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    def _copy_stat_best_effort(
+        self, source_path: Path, destination_path: Path
+    ) -> None:
+        try:
+            shutil.copystat(source_path, destination_path)
+        except OSError as exc:
+            logging.debug(
+                "Could not copy metadata from %s to %s: %s",
+                source_path,
+                destination_path,
+                exc,
+            )
+
+    def _try_clone_file(self, source_path: Path, destination_path: Path) -> bool:
+        if not self._paths_share_device(source_path, destination_path):
+            logging.debug(
+                "Skipping clone for %s -> %s (cross-device)",
+                source_path,
+                destination_path,
+            )
+            return False
+
+        clone = getattr(os, "clone", None)
+        if clone is None:
+            return False
+
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        if destination_path.exists():
+            destination_path.unlink()
+
+        try:
+            fd_src = os.open(source_path, os.O_RDONLY)
+            try:
+                fd_dst = os.open(
+                    destination_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o644,
+                )
+                try:
+                    clone(fd_src, fd_dst, 0)
+                finally:
+                    os.close(fd_dst)
+            finally:
+                os.close(fd_src)
+            self._verify_copied_file_with_retry(source_path, destination_path)
+        except OSError as exc:
+            logging.debug(
+                "Clone failed for %s -> %s: %s; using copy",
+                source_path,
+                destination_path,
+                exc,
+            )
+            try:
+                destination_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return False
+
+        logging.debug("Cloned %s -> %s", source_path, destination_path)
+        return True
+
+    def _stage_library_file(
+        self, source_path: Path, destination_path: Path
+    ) -> None:
+        if self._try_clone_file(source_path, destination_path):
+            return
+        self._copy_file_with_progress(source_path, destination_path)
+
+    def _overwrite_file_in_place(
+        self,
+        source_path: Path,
+        destination_path: Path,
+        *,
+        base_bytes: int = 0,
+        total_bytes: int | None = None,
+    ) -> None:
+        source_size = source_path.stat().st_size
+        total_size = total_bytes if total_bytes is not None else source_size
+
+        if total_size > 0:
+            starting_percentage = (base_bytes / total_size) * 100
+        else:
+            starting_percentage = 0
+
+        self._update_percentage_complete(starting_percentage, force=True)
+
+        last_error: OSError | None = None
+        for attempt in range(1, self._copy_max_attempts + 1):
+            try:
+                with source_path.open("rb") as source_file, destination_path.open(
+                    "r+b"
+                ) as destination_file:
+                    shutil.copyfileobj(
+                        _ProgressReader(
+                            source_file,
+                            base_bytes=base_bytes,
+                            total_size=total_size,
+                            on_progress=self._update_percentage_complete,
+                        ),
+                        destination_file,
+                        length=self._copy_chunk_size,
+                    )
+                    destination_file.flush()
+                    os.fsync(destination_file.fileno())
+
+                converted_size = source_path.stat().st_size
+                if converted_size < destination_path.stat().st_size:
+                    os.truncate(destination_path, converted_size)
+                    self._fsync_path(destination_path)
+
+                self._verify_copied_file_with_retry(source_path, destination_path)
+                self._copy_stat_best_effort(source_path, destination_path)
+                break
+            except OSError as exc:
+                last_error = exc
+                if (
+                    attempt < self._copy_max_attempts
+                    and self._is_transient_copy_error(exc)
+                ):
+                    logging.warning(
+                        f"In-place overwrite attempt {attempt} failed for "
+                        f"{destination_path}: {exc}; retrying"
+                    )
+                    time.sleep(self._copy_retry_backoff_seconds[attempt - 1])
+                    continue
+
+                raise OSError(
+                    f"Error overwriting {destination_path} from {source_path} after "
+                    f"{attempt} attempt(s): {exc}"
+                ) from exc
+        else:
+            if last_error is not None:
+                raise OSError(
+                    f"Error overwriting {destination_path} from {source_path} after "
+                    f"{self._copy_max_attempts} attempt(s): {last_error}"
+                ) from last_error
+
+        if total_size > 0:
+            final_percentage = ((base_bytes + source_size) / total_size) * 100
+        else:
+            final_percentage = 100
+
+        self._update_percentage_complete(final_percentage, force=True)
+        logging.debug(
+            "In-place overwrite completed for %s from %s",
+            destination_path,
+            source_path,
+        )
+
     def _record_copy_failure(
         self, message: str, *, retain_temporary_files: bool = False
     ) -> None:
@@ -438,6 +601,15 @@ class Converter:
         total_bytes: int | None = None,
         protect_destination: bool = False,
     ) -> None:
+        if protect_destination:
+            self._overwrite_file_in_place(
+                source_path,
+                destination_path,
+                base_bytes=base_bytes,
+                total_bytes=total_bytes,
+            )
+            return
+
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         source_size = source_path.stat().st_size
         total_size = total_bytes if total_bytes is not None else source_size
@@ -466,8 +638,10 @@ class Converter:
                         destination_file,
                         length=self._copy_chunk_size,
                     )
+                    destination_file.flush()
+                    os.fsync(destination_file.fileno())
 
-                shutil.copystat(source_path, destination_path)
+                self._copy_stat_best_effort(source_path, destination_path)
                 self._verify_copied_file_with_retry(source_path, destination_path)
                 break
             except OSError as exc:
@@ -499,12 +673,6 @@ class Converter:
             final_percentage = 100
 
         self._update_percentage_complete(final_percentage, force=True)
-
-        if protect_destination:
-            logging.debug(
-                f"Protected copy completed for {destination_path}; "
-                "destination was rewritten in place without unlinking"
-            )
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -597,6 +765,207 @@ class Converter:
             },
         )
 
+    def _backup_staging_input(
+        self,
+        *,
+        completed_post_copy_bytes: int,
+        total_post_copy_bytes: int,
+    ) -> bool:
+        if (
+            self._temporary_input_path is None
+            or not self._temporary_input_path.exists()
+        ):
+            self._record_copy_failure("Staging input missing; cannot create backup")
+            self.send_notification(
+                "Backup Failed",
+                f"{Path(self._file_data.filename).name if self._file_data else 'unknown'}",
+            )
+            return False
+
+        self._backup_path = Path(
+            config.config_data.folders.backup, self._temporary_input_path.name
+        )
+        self._backup_path.parent.mkdir(parents=True, exist_ok=True)
+
+        backup_created = False
+        if self._paths_share_device(self._temporary_input_path, self._backup_path):
+            try:
+                logging.info(
+                    f"Hardlinking {self._temporary_input_path} to backup folder"
+                )
+                self._backup_path.hardlink_to(self._temporary_input_path)
+                backup_created = True
+                logging.info(
+                    f"File {self._temporary_input_path} hardlink created successfully"
+                )
+            except OSError:
+                logging.info(
+                    f"Hardlinking {self._temporary_input_path} to backup folder "
+                    "failed, trying to copy instead"
+                )
+        else:
+            logging.debug(
+                "Skipping hard link backup for %s (cross-device); copying",
+                self._temporary_input_path,
+            )
+
+        if not backup_created:
+            try:
+                self._copy_file_with_progress(
+                    self._temporary_input_path,
+                    self._backup_path,
+                    base_bytes=completed_post_copy_bytes,
+                    total_bytes=total_post_copy_bytes,
+                )
+                backup_created = True
+                logging.info(
+                    f"File {self._temporary_input_path} backed up successfully"
+                )
+            except OSError as exc:
+                self._record_copy_failure(
+                    self._format_copy_failure_message(
+                        exc, retain_temporary_files=True
+                    ),
+                    retain_temporary_files=True,
+                )
+                self.send_notification(
+                    "Backup Failed",
+                    f"{Path(self._file_data.filename).name if self._file_data else 'unknown'}",
+                )
+                return False
+
+        if total_post_copy_bytes > 0:
+            backup_percentage = (
+                (completed_post_copy_bytes + self._temporary_input_path.stat().st_size)
+                / total_post_copy_bytes
+            ) * 100
+        else:
+            backup_percentage = 100
+        self._update_percentage_complete(backup_percentage, force=True)
+        return True
+
+    def _persist_overwrite_recovery_state(self) -> bool:
+        if self._file_data is None:
+            return False
+
+        self._set_overwrite_recovery_state(
+            overwrite_in_progress=True,
+            temp_output_path=self._temporary_output_path,
+            backup_path=self._backup_path,
+        )
+
+        try:
+            media_collection.update_one(
+                {"filename": self._file_data.filename},
+                {
+                    "$set": {
+                        "overwrite_in_progress": self._file_data.overwrite_in_progress,
+                        "temp_output_path": self._file_data.temp_output_path,
+                        "backup_path": self._file_data.backup_path,
+                    }
+                },
+            )
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB.")
+            self._cleanup_and_terminate(conversion_failed=True)
+            return False
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB.")
+            self._cleanup_and_terminate(conversion_failed=True)
+            return False
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+            self._cleanup_and_terminate(conversion_failed=True)
+            return False
+
+        return True
+
+    def _commit_converted_to_library(
+        self,
+        input_file_path: Path,
+        *,
+        completed_post_copy_bytes: int,
+        total_post_copy_bytes: int,
+    ) -> bool:
+        if self._temporary_output_path is None:
+            self._record_copy_failure(
+                "Converted output missing; cannot commit to library",
+                retain_temporary_files=True,
+            )
+            return False
+
+        last_error = OSError("Could not commit converted file to library")
+
+        logging.info(
+            f"Writing converted file {self._temporary_output_path} in place to "
+            f"{input_file_path}"
+        )
+
+        try:
+            self._overwrite_file_in_place(
+                self._temporary_output_path,
+                input_file_path,
+                base_bytes=completed_post_copy_bytes,
+                total_bytes=total_post_copy_bytes,
+            )
+            logging.info(
+                f"File {input_file_path} overwritten in place successfully from "
+                f"{self._temporary_output_path}"
+            )
+            return True
+        except OSError as in_place_error:
+            logging.info(
+                f"In-place overwrite of {input_file_path} failed: {in_place_error}; "
+                "trying replace"
+            )
+            last_error = in_place_error
+
+        if self._paths_share_device(self._temporary_output_path, input_file_path):
+            try:
+                self._temporary_output_path.replace(input_file_path)
+                logging.info(
+                    f"File {input_file_path} replaced successfully with "
+                    f"{self._temporary_output_path}"
+                )
+                return True
+            except OSError as replace_error:
+                logging.info(f"Replace of {input_file_path} failed: {replace_error}")
+                last_error = replace_error
+
+        self._record_copy_failure(
+            self._format_copy_failure_message(last_error, retain_temporary_files=True),
+            retain_temporary_files=True,
+        )
+        self.send_notification(
+            "Restore Failed",
+            f"{Path(self._file_data.filename).name if self._file_data else 'unknown'}",
+        )
+        return False
+
+    def _complete_successful_conversion(self, input_file_path: Path) -> None:
+        if self._file_data is None:
+            return
+
+        try:
+            self._update_percentage_complete(100, force=True)
+            self._finalize_overwrite_success(input_file_path)
+        except ServerSelectionTimeoutError:
+            logging.error("Could not connect to MongoDB.")
+            return
+        except NetworkTimeout:
+            logging.error("Could not connect to MongoDB.")
+            return
+        except AutoReconnect:
+            logging.error("Could not connect to MongoDB.")
+            return
+
+        self.send_notification(
+            "Conversion Success",
+            f"{input_file_path.name}\n"
+            f"{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%",
+        )
+        self._delete_temporary_files()
+
     def _recover_interrupted_overwrite(self, file_data: FileData) -> None:
         self._file_data = file_data
         self._temporary_output_path = (
@@ -652,18 +1021,27 @@ class Converter:
                 return
 
             try:
-                temp_output_path.replace(input_file_path)
-            except OSError:
-                try:
-                    self._copy_file_with_progress(
-                        temp_output_path,
-                        input_file_path,
-                        protect_destination=True,
-                    )
-                except OSError as e:
+                self._overwrite_file_in_place(
+                    temp_output_path,
+                    input_file_path,
+                )
+            except OSError as in_place_error:
+                if self._paths_share_device(temp_output_path, input_file_path):
+                    try:
+                        temp_output_path.replace(input_file_path)
+                    except OSError as replace_error:
+                        self._record_copy_failure(
+                            self._format_copy_failure_message(
+                                replace_error, retain_temporary_files=True
+                            ),
+                            retain_temporary_files=True,
+                        )
+                        self._clear_runtime_paths()
+                        return
+                else:
                     self._record_copy_failure(
                         self._format_copy_failure_message(
-                            e, retain_temporary_files=True
+                            in_place_error, retain_temporary_files=True
                         ),
                         retain_temporary_files=True,
                     )
@@ -713,7 +1091,6 @@ class Converter:
             db_file = media_collection.find_one_and_update(
                 {
                     "overwrite_in_progress": True,
-                    "conversion_error": {"$ne": True},
                     "deleted": {"$ne": True},
                     "converting": {"$ne": True},
                     "copying": {"$ne": True},
@@ -1013,9 +1390,9 @@ class Converter:
                 config.config_data.folders.conversions, filename + ".hevc.mkv"
             )
 
-            # Copy the file to the temporary input path
+            # Stage the library file for ffmpeg (clone on APFS when available)
             try:
-                self._copy_file_with_progress(
+                self._stage_library_file(
                     input_file_path,
                     self._temporary_input_path,
                 )
@@ -1252,212 +1629,30 @@ class Converter:
                     self._delete_temporary_files()
                     return
 
-                # Create a path for the backup file
-                self._backup_path = Path(
-                    config.config_data.folders.backup, self._temporary_input_path.name
-                )
                 total_post_copy_bytes = (
                     self._temporary_input_path.stat().st_size
                     + self._temporary_output_path.stat().st_size
                 )
-                completed_post_copy_bytes = 0
 
-                self._backup_path.parent.mkdir(parents=True, exist_ok=True)
-
-                try:
-                    # Log that we are hardlinking the input file to the backup folder
-                    logging.info(
-                        f"Hardlinking {self._temporary_input_path} to backup folder"
-                    )
-
-                    # Hardlink the input file to the backup folder
-                    self._backup_path.hardlink_to(self._temporary_input_path)
-                except OSError as e:
-                    # There was an error creating the hard link, try copying the file instead
-                    try:
-                        # Log that the hard link failed
-                        logging.info(
-                            f"Hardlinking {self._temporary_input_path} to backup folder failed, trying to copy instead"
-                        )
-
-                        # Copy the file to the backup folder
-                        self._copy_file_with_progress(
-                            self._temporary_input_path,
-                            self._backup_path,
-                            base_bytes=completed_post_copy_bytes,
-                            total_bytes=total_post_copy_bytes,
-                        )
-                        completed_post_copy_bytes += self._temporary_input_path.stat().st_size
-                    except OSError as e:
-                        # There was an error copying the file
-                        self._record_copy_failure(
-                            self._format_copy_failure_message(
-                                e, retain_temporary_files=True
-                            ),
-                            retain_temporary_files=True,
-                        )
-
-                        # Send a notification
-                        self.send_notification(
-                            "Backup Failed", f"{Path(self._file_data.filename).name}"
-                        )
-
-                        # Clean up and terminate
-                        self._cleanup_and_terminate()
-                    else:
-                        # Log that the copy was successful
-                        logging.info(
-                            f"File {self._temporary_input_path} backed up successfully"
-                        )
-                else:
-                    # Log that the hard link was successful
-                    logging.info(
-                        f"File {self._temporary_input_path} hardlink created successfully"
-                    )
-                    completed_post_copy_bytes += self._temporary_input_path.stat().st_size
-                    if total_post_copy_bytes > 0:
-                        backup_percentage = (
-                            completed_post_copy_bytes / total_post_copy_bytes
-                        ) * 100
-                    else:
-                        backup_percentage = 100
-                    self._update_percentage_complete(backup_percentage, force=True)
-
-                self._set_overwrite_recovery_state(
-                    overwrite_in_progress=True,
-                    temp_output_path=self._temporary_output_path,
-                    backup_path=self._backup_path,
-                )
-
-                try:
-                    media_collection.update_one(
-                        {"filename": self._file_data.filename},
-                        {
-                            "$set": {
-                                "overwrite_in_progress": self._file_data.overwrite_in_progress,
-                                "temp_output_path": self._file_data.temp_output_path,
-                                "backup_path": self._file_data.backup_path,
-                            }
-                        },
-                    )
-                except ServerSelectionTimeoutError:
-                    logging.error("Could not connect to MongoDB.")
-                    self._cleanup_and_terminate(conversion_failed=True)
-                    return
-                except NetworkTimeout:
-                    logging.error("Could not connect to MongoDB.")
-                    self._cleanup_and_terminate(conversion_failed=True)
-                    return
-                except AutoReconnect:
-                    logging.error("Could not connect to MongoDB.")
-                    self._cleanup_and_terminate(conversion_failed=True)
+                if not self._backup_staging_input(
+                    completed_post_copy_bytes=0,
+                    total_post_copy_bytes=total_post_copy_bytes,
+                ):
                     return
 
-                try:
-                    # Log that we are replacing the input file with the output file
-                    logging.info(
-                        f"Replacing {input_file_path} with {self._temporary_output_path}"
-                    )
+                completed_post_copy_bytes = self._temporary_input_path.stat().st_size
 
-                    # Once the copy is complete, replace the output Path with the input Path (thus overwriting the original)
-                    self._temporary_output_path.replace(input_file_path)
+                if not self._persist_overwrite_recovery_state():
+                    return
 
-                except OSError as e:
-                    # If there was an error replacing the file, try copying the file instead
-                    try:
-                        # Log that the replace failed
-                        logging.info(
-                            f"Replacing {input_file_path} with {self._temporary_output_path} failed, trying to copy instead"
-                        )
+                if not self._commit_converted_to_library(
+                    input_file_path,
+                    completed_post_copy_bytes=completed_post_copy_bytes,
+                    total_post_copy_bytes=total_post_copy_bytes,
+                ):
+                    return
 
-                        # Copy the file to the original folder
-                        self._copy_file_with_progress(
-                            self._temporary_output_path,
-                            input_file_path,
-                            base_bytes=completed_post_copy_bytes,
-                            total_bytes=total_post_copy_bytes,
-                            protect_destination=True,
-                        )
-                    except OSError as e:
-                        # There was an error copying the file
-                        self._record_copy_failure(
-                            self._format_copy_failure_message(
-                                e, retain_temporary_files=True
-                            ),
-                            retain_temporary_files=True,
-                        )
-
-                        # Send a notification
-                        self.send_notification(
-                            "Restore Failed", f"{Path(self._file_data.filename).name}"
-                        )
-
-                        # Clean up and terminate
-                        self._cleanup_and_terminate()
-                    else:
-                        # Log that the copy was successful
-                        logging.info(
-                            f"File {self._temporary_output_path} copied successfully to {input_file_path}"
-                        )
-
-                        # Update the file_data object
-                        try:
-                            self._finalize_overwrite_success(input_file_path)
-                        except ServerSelectionTimeoutError:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except NetworkTimeout:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Exit without swapping the converted file for the original
-                            return
-                        except AutoReconnect:
-                            logging.error("Could not connect to MongoDB.")
-
-                            # Exit without swapping the converted file for the original
-                            return
-
-                        # Send a notification
-                        self.send_notification(
-                            "Conversion Success",
-                            f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%",
-                        )
-                else:
-                    # Log that the copy and replace was successful
-                    logging.info(
-                        f"File {input_file_path} replaced successfully with {self._temporary_output_path}"
-                    )
-
-                    # Update the file_data object
-                    try:
-                        self._update_percentage_complete(100, force=True)
-                        self._finalize_overwrite_success(input_file_path)
-                    except ServerSelectionTimeoutError:
-                        logging.error("Could not connect to MongoDB.")
-
-                        # Exit without swapping the converted file for the original
-                        return
-                    except NetworkTimeout:
-                        logging.error("Could not connect to MongoDB.")
-
-                        # Exit without swapping the converted file for the original
-                        return
-                    except AutoReconnect:
-                        logging.error("Could not connect to MongoDB.")
-
-                        # Exit without swapping the converted file for the original
-                        return
-
-                    # Send a notification
-                    self.send_notification(
-                        "Conversion Success",
-                        f"{input_file_path.name}\n{(1 - (self._file_data.current_size / self._file_data.pre_conversion_size)) * 100:.0f}%",
-                    )
-
-                # Delete the temporary input and output files
-                self._delete_temporary_files()
+                self._complete_successful_conversion(input_file_path)
 
     # Send a push notification for the file conversion status
     def send_notification(self, title: str, message: str) -> None:
