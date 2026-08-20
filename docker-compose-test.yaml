@@ -1,3 +1,5 @@
+# Local test stack. Prefer docker-compose.yaml for Mac Mini production (/Volumes/X10).
+# Conversions live under /Media (same volume as library); no separate converter_volume.
 services:
   mongodb:
     image: mongo
@@ -32,7 +34,7 @@ services:
       - /Users/steve/Downloads/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
-        - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"
     logging:
       driver: "json-file"
       options:
@@ -44,7 +46,7 @@ services:
     depends_on:
       - mongodb
     container_name: MB-2
-    hostname:  MB-2
+    hostname: MB-2
     environment:
       - FOLDER_WALKER=FALSE
       - BACKEND_NAME=MB-2
@@ -54,11 +56,10 @@ services:
       - PUSH_COLLECTION=push_subscriptions
     volumes:
       - ./src:/src:ro
-      - converter_volume:/Conversions:rw
       - /Users/steve/Downloads/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
-        - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"
     logging:
       driver: "json-file"
       options:
@@ -68,4 +69,3 @@ services:
 volumes:
   db_volume:
   db_conf:
-  converter_volume:

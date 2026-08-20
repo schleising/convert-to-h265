@@ -107,9 +107,9 @@ flowchart TD
     commit --> done
 ```
 
-1. **Stage input** — APFS `clonefile` (or copy) library → `/Media/Conversions/...`.
+1. **Stage input** — clone when available, otherwise **full copy** library → `/Media/Conversions/...`. In Docker on the Mac Mini this is a full copy today (no `clonefile` in the Linux container).
 2. **Encode** — read staging input, write staging output under `/Media/Conversions/`.
-3. **Backup** — hard link **staging input** → `/Media/Backup/<name>`.
+3. **Backup** — hard link **staging input** → `/Media/Backup/<name>` (copy if hard link fails).
 4. **Copy-over** — `"r+b"` write converted bytes into the **existing library path**, then `truncate` to converted size.
 5. **Finalize** — `$set inode` in MongoDB (usually unchanged), delete `/Media/Conversions` temps.
 
@@ -218,6 +218,9 @@ The exFAT incident showed **`open("wb")`** truncates the library file to **0 byt
 4. **`_finalize_overwrite_success`** — always `stat` and `$set inode` by `filename`.
 5. Best-effort `copystat` after full copies (`_copy_stat_best_effort`).
 6. Backup / copy-over failure: **return** from convert (staging retained); `sys.exit` only from the signal-handler cleanup path.
+7. Overwrite recovery requires an on-disk Backup (`backup_path` set and present); claim skips recoveries without a Backup.
+
+**Docker staging note:** APFS `clonefile` is not available inside the Linux container (`os.clone` / host `clonefile` are not exposed). `_stage_library_file` falls back to a full byte copy. That is correct and safe; only the optional COW speedup is missing until a host-side clone is wired later.
 
 ---
 
@@ -251,24 +254,31 @@ First conversion on a WD My Book (exFAT) failed after ffmpeg: backup copy succee
 4. MongoDB on Mac Mini; both services use same `DB_URL`.
 5. Config: `conversions = "/Media/Conversions"`; `path_map` identity `/Media` → `/Media`.
 
-### Code
+### Code (done)
 
-| Step | Change |
-| --- | --- |
-| 1 | Copy-over: `"r+b"` + truncate, not `"wb"`. |
-| 2 | Best-effort `copystat` after verified copies. |
-| 3 | Copy failure: `return`, keep staging files; no `sys.exit` per file. |
-| 4 | Hard link backup should succeed on all-`/Media` APFS layout. |
-| 5 | Optional: APFS `clonefile` for library → staging (safe with staging → Backup hard link only). |
-| 6 | Keep `$set inode` after every successful commit. |
+All of the following are implemented in [src/converter/converter.py](../src/converter/converter.py):
+
+| Step | Change | Status |
+| --- | --- | --- |
+| 1 | Copy-over: `"r+b"` + truncate, not `"wb"` | Done |
+| 2 | Best-effort `copystat` after verified copies | Done |
+| 3 | Copy failure: `return`, keep staging; no per-file `sys.exit` | Done |
+| 4 | Hard link backup when same volume; copy fallback otherwise | Done |
+| 5 | Optional clone for library → staging (falls back to full copy in Docker) | Done |
+| 6 | `$set inode` after every successful commit | Done |
+| 7 | Recovery only when Backup exists on disk; claim requires `backup_path` | Done |
+
+### Compose files
+
+- **Production:** [docker-compose.yaml](../docker-compose.yaml) — walker + converter, `/Volumes/X10/Media:/Media`.
+- **Alternates:** [docker-compose-MBP.yaml](../docker-compose-MBP.yaml) and [docker-compose-test.yaml](../docker-compose-test.yaml) use the same all-under-`/Media` layout (no `converter_volume`). Prefer the production compose for the Mini.
 
 ### Suggested order
 
-1. Land code fixes (`"r+b"`, copystat, control flow).
-2. Ensure `/Volumes/X10/Media` exists (case-insensitive APFS) with `TV`, `Films`, `Backup`, `Conversions`.
-3. Deploy walker + converter compose on Mac Mini (`/Volumes/X10/Media:/Media`).
-4. Test convert: backup hard link, library inode unchanged, Plex item unchanged.
-5. Delete backups manually when verified.
+1. Ensure `/Volumes/X10/Media` exists with `TV`, `Films`, `Backup`, `Conversions`.
+2. Deploy walker + converter via [docker-compose.yaml](../docker-compose.yaml).
+3. Test convert: backup hard link (or copy fallback), library inode unchanged, Plex item unchanged.
+4. Delete backups manually when verified.
 
 ---
 
@@ -296,10 +306,11 @@ Sequential SSD I/O is far faster than `libx265`. Colocating `/Media/Conversions`
 ## Test plan (Mac Mini APFS)
 
 1. **Walker + converter:** both containers see same `/Media` paths in MongoDB; no `path_map` translation.
-2. **Hard link backup:** `/Media/Backup/foo.mkv` same inode as `/Media/Conversions/foo.mkv`.
-3. **Clone isolation:** after `"r+b"` commit on library, Backup bytes still match pre-convert original.
+2. **Hard link backup:** `/Media/Backup/foo.mkv` same inode as `/Media/Conversions/foo.mkv` (or log shows copy fallback).
+3. **Clone isolation / backup safety:** after `"r+b"` commit on library, Backup bytes still match pre-convert original.
 4. **Inode stable:** library `st_ino` unchanged with `"r+b"` commit; MongoDB matches.
 5. **Plex:** same item after scan; no remove/re-add.
 6. **Walker rename:** rename on disk; walk updates `filename`, not `deleted`.
 7. **Failure:** write error during `"r+b"`; library not 0 bytes; Backup intact.
 8. **Same APFS volume:** library, Conversions, Backup — same `st_dev`.
+9. **No-backup recovery:** if Backup is missing, recovery must not overwrite the library; staged output remains.

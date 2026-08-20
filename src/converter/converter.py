@@ -990,6 +990,22 @@ class Converter:
                 self._clear_runtime_paths()
                 return
 
+            backup_ok = (
+                self._backup_path is not None and self._backup_path.exists()
+            )
+            if not backup_ok:
+                logging.error(
+                    "Cannot recover overwrite for %s without an existing backup; "
+                    "leaving staged output for manual recovery",
+                    file_data.filename,
+                )
+                self._record_copy_failure(
+                    "Backup missing; cannot safely recover overwrite",
+                    retain_temporary_files=True,
+                )
+                self._clear_runtime_paths()
+                return
+
             self._file_data.converting = False
             self._file_data.copying = True
             self._file_data.start_copy_time = self._utc_now()
@@ -1091,6 +1107,7 @@ class Converter:
             db_file = media_collection.find_one_and_update(
                 {
                     "overwrite_in_progress": True,
+                    "backup_path": {"$type": "string", "$ne": ""},
                     "deleted": {"$ne": True},
                     "converting": {"$ne": True},
                     "copying": {"$ne": True},
