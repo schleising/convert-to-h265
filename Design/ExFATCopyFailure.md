@@ -208,16 +208,16 @@ Goals:
 
 Plex on the Mac Mini reads APFS via `/Volumes/X10/Media/...`. FSEvents on an in-place rewrite reports an update to an existing file.
 
-### Code still required
+### Code implemented
 
-The exFAT incident showed **`open("wb")`** truncates the library file to **0 bytes** before writing. Fix regardless of APFS:
+The exFAT incident showed **`open("wb")`** truncates the library file to **0 bytes** before writing. That path is fixed in [src/converter/converter.py](../src/converter/converter.py):
 
-1. Open library path **`"r+b"`** (no truncate-on-open).
-2. Write converted bytes; `flush` + `fsync`; `truncate(converted_size)`.
+1. Library commit opens **`"r+b"`** via `_overwrite_file_in_place` (no truncate-on-open).
+2. Writes converted bytes; `flush` + `fsync`; `truncate(converted_size)`.
 3. On failure: Backup intact; library never intentionally 0 bytes.
 4. **`_finalize_overwrite_success`** — always `stat` and `$set inode` by `filename`.
-5. Best-effort `copystat` after full copies.
-6. Copy failure: **return**, keep staging files; no `sys.exit` per file.
+5. Best-effort `copystat` after full copies (`_copy_stat_best_effort`).
+6. Backup / copy-over failure: **return** from convert (staging retained); `sys.exit` only from the signal-handler cleanup path.
 
 ---
 
