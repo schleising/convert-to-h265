@@ -1,5 +1,5 @@
 # Mac Mini deployment: walker + converter share one APFS media mount.
-# Set MEDIA_HOST_PATH to the SSD mount (without /Media suffix), e.g. /Volumes/MySSD
+# Host volume: /Volumes/X10 (case-insensitive APFS); media tree at /Volumes/X10/Media
 services:
   walker-1:
     build: walker
@@ -23,7 +23,7 @@ services:
       - TMDB_API_KEY=${TMDB_API_KEY:-}
     volumes:
       - ./src:/src:ro
-      - ${MEDIA_HOST_PATH:-/Volumes/Media}/Media:/Media:rw
+      - /Volumes/X10/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -46,7 +46,7 @@ services:
       - PUSH_COLLECTION=push_subscriptions
     volumes:
       - ./src:/src:ro
-      - ${MEDIA_HOST_PATH:-/Volumes/Media}/Media:/Media:rw
+      - /Volumes/X10/Media:/Media:rw
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

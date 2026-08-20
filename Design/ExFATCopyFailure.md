@@ -28,7 +28,7 @@ The SSD is **APFS** (Apple File System). Fixed requirement, not a recommendation
 
 Do **not** use exFAT, FAT32, or NTFS on this disk.
 
-**APFS case sensitivity (confirmed):** **case-sensitive** APFS. Walker and converter paths in MongoDB and [src/config.toml](../src/config.toml) must match on-disk casing exactly.
+**APFS case sensitivity (confirmed):** **case-insensitive** APFS (standard APFS, not APFS Case-sensitive). Prefer consistent casing in MongoDB and on disk for clarity; the volume itself does not treat `Film` and `film` as different names.
 
 ### Services (Docker Compose)
 
@@ -43,7 +43,7 @@ services:
       - DB_URL=mongodb://host.docker.internal:27017/   # or mongodb service name
     volumes:
       - ./src:/src:ro
-      - /Volumes/<SSD>/Media:/Media:rw   # TODO: set volume name when SSD arrives
+      - /Volumes/X10/Media:/Media:rw
 
   backend-1:
     build: backend
@@ -52,7 +52,7 @@ services:
       - DB_URL=mongodb://host.docker.internal:27017/
     volumes:
       - ./src:/src:ro
-      - /Volumes/<SSD>/Media:/Media:rw   # same mount as walker
+      - /Volumes/X10/Media:/Media:rw   # same mount as walker
 ```
 
 - **No** `converter_volume` Docker volume.
@@ -63,9 +63,9 @@ services:
 
 | Host (APFS) | Container | Role |
 | --- | --- | --- |
-| `/Volumes/<SSD>/Media` | `/Media` | Library, backup, conversions — **one APFS volume** |
+| `/Volumes/X10/Media` | `/Media` | Library, backup, conversions — **one APFS volume** |
 
-> **TODO:** Replace `<SSD>` with the actual volume name under `/Volumes/` once the drive is connected (expected when hardware arrives).
+Host volume: **`/Volumes/X10`** (case-insensitive APFS). Media tree lives at `/Volumes/X10/Media`.
 
 Everything under `/Media` in config:
 
@@ -206,7 +206,7 @@ Goals:
 
 **Production commit:** hard link backup (staging → Backup), then in-place `"r+b"` into library path.
 
-Plex on the Mac Mini reads APFS via `/Volumes/<SSD>/Media/...`. FSEvents on in-place rewrite reports an update to an existing file.
+Plex on the Mac Mini reads APFS via `/Volumes/X10/Media/...`. FSEvents on an in-place rewrite reports an update to an existing file.
 
 ### Code still required
 
@@ -232,10 +232,10 @@ First conversion on a WD My Book (exFAT) failed after ffmpeg: backup copy succee
 | Topic | Decision |
 | --- | --- |
 | Filesystem | **APFS** on 8 TB SSD |
-| APFS variant | **Case-sensitive** |
+| APFS variant | **Case-insensitive** (standard APFS; not Case-sensitive) |
+| Host mount | **`/Volumes/X10`** — media at `/Volumes/X10/Media` |
 | NAS | **Retired** — walker + converter on Mac Mini only |
 | Docker layout | **One compose project**, shared `/Media` mount, no `path_map` |
-| APFS volume name | **TODO** — set `/Volumes/<name>/Media` in compose when SSD is connected |
 | Backup retention | **Manual deletion** — no automatic prune; user removes `/Media/Backup` files when satisfied |
 | Encoder | **`libx265` only** |
 
@@ -245,9 +245,9 @@ First conversion on a WD My Book (exFAT) failed after ffmpeg: backup copy succee
 
 ### Infrastructure (Mac Mini)
 
-1. **APFS SSD (confirmed):** case-sensitive APFS; media root at `/Volumes/<SSD>/Media` (volume name TBD).
+1. **APFS SSD (confirmed):** case-insensitive APFS; volume mounted at `/Volumes/X10`; media root `/Volumes/X10/Media`.
 2. Library tree: `TV`, `Films`, `Backup`, `Conversions`, …
-3. **Docker Compose:** `walker-1` + `backend-1`, both `- /Volumes/<SSD>/Media:/Media:rw`; remove `converter_volume`.
+3. **Docker Compose:** `walker-1` + `backend-1`, both `- /Volumes/X10/Media:/Media:rw`; remove `converter_volume`.
 4. MongoDB on Mac Mini; both services use same `DB_URL`.
 5. Config: `conversions = "/Media/Conversions"`; `path_map` identity `/Media` → `/Media`.
 
@@ -265,8 +265,8 @@ First conversion on a WD My Book (exFAT) failed after ffmpeg: backup copy succee
 ### Suggested order
 
 1. Land code fixes (`"r+b"`, copystat, control flow).
-2. Connect SSD, format case-sensitive APFS, update compose volume path (TODO).
-3. Deploy walker + converter compose on Mac Mini.
+2. Ensure `/Volumes/X10/Media` exists (case-insensitive APFS) with `TV`, `Films`, `Backup`, `Conversions`.
+3. Deploy walker + converter compose on Mac Mini (`/Volumes/X10/Media:/Media`).
 4. Test convert: backup hard link, library inode unchanged, Plex item unchanged.
 5. Delete backups manually when verified.
 
@@ -303,9 +303,3 @@ Sequential SSD I/O is far faster than `libx265`. Colocating `/Media/Conversions`
 6. **Walker rename:** rename on disk; walk updates `filename`, not `deleted`.
 7. **Failure:** write error during `"r+b"`; library not 0 bytes; Backup intact.
 8. **Same APFS volume:** library, Conversions, Backup — same `st_dev`.
-
----
-
-## Remaining TODO
-
-- **`/Volumes/<SSD>` name** — update [docker-compose.yaml](../docker-compose.yaml) bind mount once the 8 TB SSD is connected and the volume name is known.
