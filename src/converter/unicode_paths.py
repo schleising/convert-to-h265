@@ -12,14 +12,23 @@ def normalize_path(path: str) -> str:
     return unicodedata.normalize("NFC", path)
 
 
+def path_identity_key(path: str) -> str:
+    """Identity for same-file checks on case-insensitive APFS (NFC + casefold)."""
+    return normalize_path(path).casefold()
+
+
 def paths_equivalent(left: str, right: str) -> bool:
     return normalize_path(left) == normalize_path(right)
 
 
+def paths_same_file(left: str, right: str) -> bool:
+    return path_identity_key(left) == path_identity_key(right)
+
+
 def find_equivalent_path(name: str, candidates: set[str]) -> str | None:
-    target = normalize_path(name)
+    target = path_identity_key(name)
     for candidate in candidates:
-        if normalize_path(candidate) == target:
+        if path_identity_key(candidate) == target:
             return candidate
     return None
 
@@ -48,9 +57,9 @@ def _resolve_name_in_directory(parent: Path, name: str) -> Path:
     if direct.exists():
         return direct
 
-    target = normalize_path(name)
+    target = path_identity_key(name)
     for entry in _iter_dir_entries(parent):
-        if normalize_path(entry.name) == target:
+        if path_identity_key(entry.name) == target:
             return entry
     return direct
 

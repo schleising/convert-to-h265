@@ -584,8 +584,6 @@ class Converter:
         self._file_data.start_copy_time = None
         self._file_data.percentage_complete = 100
 
-        new_inode = input_file_path.stat().st_ino
-
         media_collection.update_one(
             {"filename": self._file_data.filename},
             {
@@ -599,7 +597,6 @@ class Converter:
                     "overwrite_in_progress": self._file_data.overwrite_in_progress,
                     "temp_output_path": self._file_data.temp_output_path,
                     "backup_path": self._file_data.backup_path,
-                    "inode": new_inode,
                 }
             },
         )

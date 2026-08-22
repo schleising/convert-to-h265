@@ -7,7 +7,7 @@ services:
     hostname: Walker-1
     environment:
       - FOLDER_WALKER=TRUE
-      # Set TRUE to skip folder walks (e.g. fix duplicate inodes via update_inodes.py).
+      # Set TRUE to skip folder walks (e.g. run clear_inodes.py manually).
       # Remove or set FALSE to resume normal scanning.
       - WALKER_IDLE=FALSE
       - BACKEND_NAME=Walker-1

@@ -13,8 +13,8 @@ from .cover_art_prefetch import ensure_posters_background
 from .unicode_paths import (
     clear_directory_cache,
     find_equivalent_path,
-    normalize_path,
-    paths_equivalent,
+    path_identity_key,
+    paths_same_file,
     resolve_filesystem_path,
 )
 
@@ -39,13 +39,14 @@ class CodecDetector:
         logging.info("Getting old data from MongoDB")
         try:
             data_from_db = media_collection.find(
-                {"deleted": False}, {"filename": 1, "inode": 1, "_id": 0}
+                {"deleted": False}, {"filename": 1, "_id": 0}
             )
 
-            # Convert the list of FileData objects to a dictionary with the file path as the key
-            self._list_from_db: list[FileInfo] = [
-                FileInfo(**data) for data in data_from_db
-            ]
+            self._list_from_db: list[FileInfo] = []
+            for data in data_from_db:
+                filename = data.get("filename")
+                if isinstance(filename, str) and filename:
+                    self._list_from_db.append(FileInfo(filename=filename))
         except ServerSelectionTimeoutError:
             logging.error("Could not connect to MongoDB")
 
@@ -78,12 +79,10 @@ class CodecDetector:
             clear_directory_cache()
             self._update_changed_files()
 
-    def _set_filename_in_db(
-        self, inode: int, old_filename: str, new_filename: str
-    ) -> bool:
+    def _set_filename_in_db(self, old_filename: str, new_filename: str) -> bool:
         try:
             media_collection.update_one(
-                {"inode": inode},
+                {"filename": old_filename},
                 {"$set": {"filename": new_filename, "deleted": False}},
             )
         except ServerSelectionTimeoutError:
@@ -116,11 +115,8 @@ class CodecDetector:
         return True
 
     def _update_changed_files(self) -> None:
-        # If files have been deleted, check whether the inode is still on disk.
-        # If it is, update the filename to the on-disk path (including NFC/NFD fixes).
+        # Update DB paths that differ from disk only by Unicode spelling or case.
         drive_paths = set(self._files.keys())
-        drive_by_inode = {info.inode: info for info in self._files.values()}
-        pending_db_files: list[FileInfo] = []
 
         for db_file_info in self._list_from_db:
             if db_file_info.filename in drive_paths:
@@ -129,37 +125,18 @@ class CodecDetector:
             equivalent_path = find_equivalent_path(db_file_info.filename, drive_paths)
             if equivalent_path is not None:
                 drive_file_info = self._files[equivalent_path]
-                if not paths_equivalent(
+                if not paths_same_file(
                     db_file_info.filename, drive_file_info.filename
                 ):
                     if self._set_filename_in_db(
-                        db_file_info.inode,
                         db_file_info.filename,
                         drive_file_info.filename,
                     ):
                         db_file_info.filename = drive_file_info.filename
                 continue
 
-            pending_db_files.append(db_file_info)
-
-        if not pending_db_files:
-            return
-
-        logging.info("Updating deleted or renamed files in MongoDB")
-
-        for db_file_info in pending_db_files:
-            drive_file_info = drive_by_inode.get(db_file_info.inode)
-            if drive_file_info is None:
-                logging.info("File deleted: %s", db_file_info.filename)
-                self._mark_deleted_in_db(db_file_info.filename)
-                continue
-
-            if self._set_filename_in_db(
-                db_file_info.inode,
-                db_file_info.filename,
-                drive_file_info.filename,
-            ):
-                db_file_info.filename = drive_file_info.filename
+            logging.info("File deleted: %s", db_file_info.filename)
+            self._mark_deleted_in_db(db_file_info.filename)
 
     def get_file_encoding(self) -> None:
         # Only run if the connection to MongoDB was successful
@@ -175,20 +152,19 @@ class CodecDetector:
 
         filenames_from_db = {file_info.filename for file_info in self._list_from_db}
         normalized_filenames_from_db = {
-            normalize_path(filename) for filename in filenames_from_db
+            path_identity_key(filename) for filename in filenames_from_db
         }
 
         for file_info in self._files.values():
             if file_info.filename in filenames_from_db:
                 continue
-            if normalize_path(file_info.filename) in normalized_filenames_from_db:
+            if path_identity_key(file_info.filename) in normalized_filenames_from_db:
                 continue
 
             probe_path = resolve_filesystem_path(Path(file_info.filename))
 
             file_stat = probe_path.stat()
             file_size = file_stat.st_size
-            file_inode = file_stat.st_ino
 
             ffprobe_command = list(self._ffprobe_base_command)
             ffprobe_command.append(probe_path.as_posix())
@@ -259,7 +235,6 @@ class CodecDetector:
 
                 file_data = FileData(
                     filename=file_info.filename,
-                    inode=file_inode,
                     deleted=False,
                     video_information=video_information,
                     conversion_required=conversion_required,

@@ -3,7 +3,7 @@ import logging
 
 from . import config
 from .models import FileInfo
-from .unicode_paths import clear_directory_cache, normalize_path
+from .unicode_paths import clear_directory_cache, path_identity_key
 
 
 class FolderWalker:
@@ -28,17 +28,17 @@ class FolderWalker:
         for path in self._paths:
             self._walk(path)
 
-        seen_normalized_paths: set[str] = set()
+        seen_identity_keys: set[str] = set()
         files_dict: dict[str, FileInfo] = {}
         for file_info in self._files:
-            normalized_path = normalize_path(file_info.filename)
-            if normalized_path in seen_normalized_paths:
+            identity_key = path_identity_key(file_info.filename)
+            if identity_key in seen_identity_keys:
                 logging.warning(
-                    "Skipping duplicate Unicode path during walk: %s",
+                    "Skipping duplicate path during walk: %s",
                     file_info.filename,
                 )
                 continue
-            seen_normalized_paths.add(normalized_path)
+            seen_identity_keys.add(identity_key)
             files_dict[file_info.filename] = file_info
 
         self.files_dict = files_dict
@@ -70,7 +70,7 @@ class FolderWalker:
                 "mpg",
             ]:
                 # Create a FileInfo object
-                file_info = FileInfo(filename=file.as_posix(), inode=file.stat().st_ino)
+                file_info = FileInfo(filename=file.as_posix())
 
                 # If it's a file and it's a video file, add it to the list of files to find the encoding of
                 self._files.append(file_info)
