@@ -2,7 +2,7 @@
 """Read current inodes from disk and update media_collection.
 
 Filenames in MongoDB are stored under /Media. On the Mac Mini those files
-live under /Volumes/My Book/Media. This script maps the database path onto
+live under /Volumes/X10/Media. This script maps the database path onto
 that local folder, stats each file, and writes st_ino back onto the document.
 
 All documents are processed so unique inode values are preserved, including
@@ -43,7 +43,7 @@ DEFAULT_DB_URL = "mongodb://macmini2.home.arpa:27017"
 DEFAULT_DB_NAME = "media"
 DEFAULT_DB_COLLECTION = "media_collection"
 DB_MEDIA_ROOT = Path("/Media")
-LOCAL_MEDIA_ROOT = Path("/Volumes/My Book/Media")
+LOCAL_MEDIA_ROOT = Path("/Volumes/X10/Media")
 _directory_entries: dict[Path, tuple[Path, ...]] = {}
 
 
