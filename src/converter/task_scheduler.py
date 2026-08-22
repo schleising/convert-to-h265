@@ -28,10 +28,18 @@ class TaskScheduler:
         self._register_signal_handlers()
 
         # Walker: construct CoverArtClient once for background ensure_posters
-        if os.getenv("FOLDER_WALKER") == "TRUE":
+        if (
+            os.getenv("FOLDER_WALKER") == "TRUE"
+            and os.getenv("WALKER_IDLE") != "TRUE"
+        ):
             from .cover_art_prefetch import init_cover_art_client
 
             init_cover_art_client()
+
+        if os.getenv("WALKER_IDLE") == "TRUE":
+            logging.info(
+                "WALKER_IDLE=TRUE: folder walks disabled; container staying up for manual use"
+            )
 
     def _signal_handler(self, sig: int, _):
         # Handle SIGINT and SIGTERM signals to ensure the Docker container stops gracefully
@@ -57,6 +65,9 @@ class TaskScheduler:
 
             # Only walk the folders if this is the main backend
             if os.getenv("FOLDER_WALKER") == "TRUE":
+                if os.getenv("WALKER_IDLE") == "TRUE":
+                    sleep(1)
+                    continue
                 if now > self._next_walk_time:
                     # If the current time is after the next walk time, walk the folders
                     logging.info("Walk folders")

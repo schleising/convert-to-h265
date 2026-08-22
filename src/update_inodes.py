@@ -9,7 +9,9 @@ All documents are processed so unique inode values are preserved, including
 deleted rows whose inode would collide with a live file. Two database rows
 for the same path with different Unicode normalization (NFC vs NFD) are
 treated as one file: the on-disk name is kept and the duplicate is marked
-deleted. Use --dry-run to preview changes without writing.
+deleted. Writes use a two-step bulk update: every document inode is cleared
+to a unique negative placeholder, then final values are applied (avoids
+unique-index collisions during large resyncs). Use --dry-run to preview.
 
 Example:
     python src/update_inodes.py --dry-run
@@ -43,7 +45,7 @@ DEFAULT_DB_URL = "mongodb://macmini2.home.arpa:27017"
 DEFAULT_DB_NAME = "media"
 DEFAULT_DB_COLLECTION = "media_collection"
 DB_MEDIA_ROOT = Path("/Media")
-LOCAL_MEDIA_ROOT = Path("/Volumes/X10/Media")
+LOCAL_MEDIA_ROOT = Path("/Media")
 _directory_entries: dict[Path, tuple[Path, ...]] = {}
 
 
@@ -295,41 +297,39 @@ def _bulk_update(
     return result.modified_count
 
 
+def _assign_clearing_inodes(records: list[Record]) -> dict[ObjectId, int]:
+    used: set[int] = {
+        record.inode for record in records if record.inode is not None
+    }
+    clearing: dict[ObjectId, int] = {}
+    next_temp = -1
+    for record in records:
+        next_temp = _next_unused_inode(used, next_temp)
+        used.add(next_temp)
+        clearing[record.document_id] = next_temp
+        next_temp -= 1
+    return clearing
+
+
 def _apply_updates(
     collection: Collection[dict[str, object]],
     records: list[Record],
-    pending: list[Record],
 ) -> int:
-    # Two-phase write so unique inode indexes are not violated mid-update
-    # (including A/B inode swaps). Temporary values must not collide with
-    # inodes that documents outside this batch will keep.
-    inode_pending = [
-        record
-        for record in pending
-        if record.target_inode is not None and record.inode != record.target_inode
+    # Clear every inode to a unique negative value first so the unique index
+    # is never violated while swapping or assigning real disk inodes.
+    clearing = _assign_clearing_inodes(records)
+    clear_operations = [
+        UpdateOne({"_id": document_id}, {"$set": {"inode": temp_inode}})
+        for document_id, temp_inode in clearing.items()
     ]
-    pending_ids = {record.document_id for record in inode_pending}
-    used_temps = {
-        record.inode
-        for record in records
-        if record.document_id not in pending_ids and record.inode is not None
-    }
-
-    temp_operations: list[UpdateOne] = []
-    next_temp = -1
-
-    for record in inode_pending:
-        temp_inode = _next_unused_inode(used_temps, next_temp)
-        used_temps.add(temp_inode)
-        next_temp = temp_inode - 1
-        temp_operations.append(
-            UpdateOne({"_id": record.document_id}, {"$set": {"inode": temp_inode}})
-        )
-
-    _bulk_update(collection, temp_operations)
+    logging.info(
+        "Clearing %s document inode(s) to temporary negative values",
+        len(clear_operations),
+    )
+    _bulk_update(collection, clear_operations)
 
     final_operations: list[UpdateOne] = []
-    for record in pending:
+    for record in records:
         target_inode = record.target_inode
         if target_inode is None:
             continue
@@ -339,6 +339,8 @@ def _apply_updates(
         final_operations.append(
             UpdateOne({"_id": record.document_id}, {"$set": fields})
         )
+
+    logging.info("Writing final inode values for %s document(s)", len(final_operations))
     return _bulk_update(collection, final_operations)
 
 
@@ -435,6 +437,11 @@ def main() -> int:
             )
 
     if args.dry_run:
+        logging.info(
+            "Dry run; would clear %s inode(s) then write %s final value(s)",
+            len(records),
+            sum(1 for record in records if record.target_inode is not None),
+        )
         logging.info("Dry run; no changes written")
         return 0
 
@@ -442,7 +449,7 @@ def main() -> int:
         logging.info("Nothing to update")
         return 0
 
-    modified = _apply_updates(collection, records, pending)
+    modified = _apply_updates(collection, records)
     logging.info("Updated %s document(s)", modified)
     return 0
 

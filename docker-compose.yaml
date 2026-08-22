@@ -7,6 +7,9 @@ services:
     hostname: Walker-1
     environment:
       - FOLDER_WALKER=TRUE
+      # Set TRUE to skip folder walks (e.g. fix duplicate inodes via update_inodes.py).
+      # Remove or set FALSE to resume normal scanning.
+      - WALKER_IDLE=FALSE
       - BACKEND_NAME=Walker-1
       - DB_URL=mongodb://host.docker.internal:27017/
       - DB_NAME=media
