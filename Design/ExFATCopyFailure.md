@@ -182,12 +182,12 @@ After success, delete `/Media/Conversions` temps; `unlink` staging removes one n
 
 ### What about `Path.replace` for copy-over?
 
-Same APFS volume, so `Path.replace` is allowed (`EXDEV`-free). Still **not** preferred:
+Same APFS volume, so `Path.replace` is allowed (`EXDEV`-free). **Preferred commit path:**
 
-- Changes the inode at the library path → Plex risk, MongoDB must `$set` new inode.
-- **Prefer in-place `"r+b"`** — same inode at library path; Plex sees modify.
+- Atomic rename of staging output onto the library path when same volume.
+- On failure: full copy with `"wb"` into the existing library path (`protect_destination=True`).
 
-Use `replace` only if in-place write fails after backup exists.
+In-place `"r+b"` overwrite was tried to preserve inode/Plex identity but caused **flakey playback** (out-of-sync / Plex web player issues) on APFS; reverted to replace-first behaviour (pre–exFAT style).
 
 ---
 
@@ -200,27 +200,28 @@ Goals:
 
 | Operation | Library path inode | Plex (typical) | MongoDB |
 | --- | --- | --- | --- |
-| In-place `"r+b"` + truncate | **Unchanged** | Modify on same path | `$set inode` (usually same value) |
-| `Path.replace` onto library path | **Changes** | Risk delete + add | **Must** `$set` new inode |
+| `Path.replace` onto library path | **Changes** | Usually OK on APFS; `$set` inode | **Must** `$set` new inode |
+| Copy with `"wb"` into existing path | **Unchanged** | Modify on same path | `$set inode` (usually same value) |
+| In-place `"r+b"` + truncate | **Unchanged** | **Reverted** — caused playback issues | — |
 | Unlink library + rename partial | **Changes** | Delete + add | Avoid as default |
 
-**Production commit:** hard link backup (staging → Backup), then in-place `"r+b"` into library path.
+**Production commit:** hard link backup (staging → Backup), then **`Path.replace`** staging output → library; on failure, **`"wb"` copy** into library path.
 
-Plex on the Mac Mini reads APFS via `/Volumes/X10/Media/...`. FSEvents on an in-place rewrite reports an update to an existing file.
+Plex on the Mac Mini reads APFS via `/Volumes/X10/Media/...`. After replace, `_finalize_overwrite_success` always `$set`s inode from a fresh `stat`.
 
 ### Code implemented
 
-The exFAT incident showed **`open("wb")`** truncates the library file to **0 bytes** before writing. That path is fixed in [src/converter/converter.py](../src/converter/converter.py):
+Library commit in [src/converter/converter.py](../src/converter/converter.py) (reverted to pre–exFAT copy-over style for APFS/X10):
 
-1. Library commit opens **`"r+b"`** via `_overwrite_file_in_place` (no truncate-on-open).
-2. Writes converted bytes; `flush` + `fsync`; `truncate(converted_size)`.
-3. On failure: Backup intact; library never intentionally 0 bytes.
-4. **`_finalize_overwrite_success`** — always `stat` and `$set inode` by `filename`.
-5. Best-effort `copystat` after full copies (`_copy_stat_best_effort`).
+1. **`Path.replace`** staging output → library path (same volume).
+2. On failure: **`_copy_file_with_progress`** with `"wb"` and `protect_destination=True` (rewrite existing library file).
+3. Strict **`shutil.copystat`** after copy (not best-effort).
+4. Staging input: plain copy library → temp (no clone).
+5. **`_finalize_overwrite_success`** — always `stat` and `$set inode` by `filename`.
 6. Backup / copy-over failure: **return** from convert (staging retained); `sys.exit` only from the signal-handler cleanup path.
 7. Overwrite recovery requires an on-disk Backup (`backup_path` set and present); claim skips recoveries without a Backup.
 
-**Docker staging note:** APFS `clonefile` is not available inside the Linux container (`os.clone` / host `clonefile` are not exposed). `_stage_library_file` falls back to a full byte copy. That is correct and safe; only the optional COW speedup is missing until a host-side clone is wired later.
+**Note:** In-place `"r+b"` (`_overwrite_file_in_place`) was removed after flaky Plex web playback; the exFAT 0-byte `"wb"` risk does not apply on APFS when `replace` succeeds (primary path).
 
 ---
 
