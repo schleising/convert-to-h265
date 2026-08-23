@@ -25,6 +25,7 @@ from requests.status_codes import codes
 from .models import FileData
 from . import media_collection, push_collection, cover_art_cache_collection, config, NOTIFICATION_TTL
 from .cover_art import notification_image_fields
+from .ffprobe_utils import estimate_total_video_frames
 from .unicode_paths import resolve_filesystem_path
 
 
@@ -84,6 +85,10 @@ class Converter:
         # do not overwhelm MongoDB with writes.
         self._last_progress_update_time: datetime | None = None
 
+        # Encode-phase progress (frame-based; see Design/ConversionProgressFrames.md)
+        self._encode_total_frames: int | None = None
+        self._encode_last_percentage: float = 0.0
+
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -109,6 +114,60 @@ class Converter:
             return None
 
         return self._file_data.video_information.streams[first_video_stream].height
+
+    def _prepare_encode_progress(self) -> None:
+        """Estimate total frames and reset encode progress state for this job."""
+        self._encode_last_percentage = 0.0
+        self._encode_total_frames = None
+
+        if self._file_data is None:
+            return
+
+        estimate = estimate_total_video_frames(
+            self._file_data.video_information,
+            self._file_data.first_video_stream,
+        )
+        if estimate is None:
+            logging.info(
+                "Encode progress: no frame estimate; using time-based fallback "
+                "(±1–2%% possible for VFR)"
+            )
+            return
+
+        self._encode_total_frames = estimate.total_frames
+        logging.info(
+            "Encode progress: %s frames from %s (approximate for VFR)",
+            estimate.total_frames,
+            estimate.source,
+        )
+
+    def _encode_percentage_from_progress(
+        self, ffmpeg_progress: FFmpegProgress
+    ) -> float | None:
+        """Compute encode percentage from frames, or time as fallback.
+
+        Returns None when the progress event should be ignored (e.g. frame=0
+        while in frame-based mode).
+        """
+        if self._file_data is None:
+            return None
+
+        if self._encode_total_frames is not None:
+            if ffmpeg_progress.frame <= 0:
+                return None
+            raw = (ffmpeg_progress.frame / self._encode_total_frames) * 100
+        else:
+            duration_seconds = self._file_data.video_information.format.duration
+            if duration_seconds <= 0:
+                return None
+            duration = timedelta(seconds=duration_seconds)
+            if duration.total_seconds() <= 0:
+                return None
+            raw = (ffmpeg_progress.time / duration) * 100
+
+        percentage = min(100.0, max(self._encode_last_percentage, raw))
+        self._encode_last_percentage = percentage
+        return percentage
 
     def _get_subtitle_codec(self) -> str:
         if self._file_data is None or self._file_data.subtitle_streams == 0:
@@ -1334,26 +1393,29 @@ class Converter:
             # Log the ffmpeg command
             logging.info(f'ffmpeg command: {" ".join(self._ffmpeg.arguments)}')
 
-            # Store the last update time
+            # Store the last update time and prepare frame-based encode progress
             self._last_progress_update_time = None
+            self._prepare_encode_progress()
 
             # Update the progress bar when ffmpeg emits a progress event
             @self._ffmpeg.on("progress")
             def _on_progress(ffmpeg_progress: FFmpegProgress) -> None:
-                if self._file_data is not None:
-                    # Calculate the percentage complete
-                    duration = timedelta(
-                        seconds=self._file_data.video_information.format.duration
-                    )
-                    percentage_complete = (ffmpeg_progress.time / duration) * 100
+                if self._file_data is None:
+                    return
 
-                    self._update_percentage_complete(
-                        percentage_complete,
-                        speed=ffmpeg_progress.speed,
-                    )
+                percentage_complete = self._encode_percentage_from_progress(
+                    ffmpeg_progress
+                )
+                if percentage_complete is None:
+                    return
 
-                    # Log the progress
-                    logging.debug(ffmpeg_progress)
+                self._update_percentage_complete(
+                    percentage_complete,
+                    speed=ffmpeg_progress.speed,
+                )
+
+                # Log the progress
+                logging.debug(ffmpeg_progress)
 
             @self._ffmpeg.on("terminated")
             def _on_terminated() -> None:
@@ -1396,6 +1458,8 @@ class Converter:
             else:
                 # ffmpeg executed successfully
                 logging.info(f"Successfully converted {self._file_data.filename}")
+                self._encode_last_percentage = 100.0
+                self._update_percentage_complete(100, force=True)
 
                 # Check that the file size has been reduced
                 file_size_reduced = (

@@ -142,3 +142,11 @@ graph TD
     J --> K[Delete temporary output path]
     K --> L(End)
 ```
+
+## Conversion progress
+
+During the ffmpeg encode, `percentage_complete` is driven by **encoded video frames** (`frame=` from ffmpeg) divided by an estimated total frame count (`nb_frames` from ffprobe, or `duration × fps`). Progress is **monotonic** (never goes backwards) to avoid muxer timestamp jitter when re-encoding audio.
+
+For variable frame-rate sources the estimate can be about **±1–2%** off near the end of the encode; a successful convert still forces 100% before the copy/backup phase. Post-encode backup and library commit progress remains **byte-based**.
+
+See [Design/ConversionProgressFrames.md](Design/ConversionProgressFrames.md).
