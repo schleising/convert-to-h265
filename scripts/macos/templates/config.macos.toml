@@ -27,6 +27,9 @@ vt_g = 72
 vt_keyint_min = 24
 vt_spatial_aq = 1
 vt_realtime = 0
+audio_codec = "aac"
+audio_bitrate = "256k"
+audio_filter = "aresample=async=1"
 
 [runtime]
 log_directory = "__HOME__/Library/Logs/convert-to-h265"

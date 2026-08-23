@@ -44,6 +44,10 @@
     vt_keyint_min = 24
     vt_spatial_aq = 1
     vt_realtime = 0
+    # Re-encode audio to AAC (Plex-friendly). Set to "copy" to keep source tracks.
+    audio_codec = "aac"
+    audio_bitrate = "256k"
+    audio_filter = "aresample=async=1"
 
 # Runtime settings
 [runtime]

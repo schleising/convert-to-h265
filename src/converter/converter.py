@@ -153,11 +153,16 @@ class Converter:
             video_height is not None and video_height <= encoding.small_height_threshold
         )
 
-        options = {
+        options: dict[str, Any] = {
             "c:v": video_codec,
-            "c:a": "copy",
+            "c:a": encoding.audio_codec,
             "c:s": subtitle_codec,
         }
+
+        if encoding.audio_codec != "copy":
+            options["b:a"] = encoding.audio_bitrate
+            if encoding.audio_filter:
+                options["af"] = encoding.audio_filter
 
         if video_codec == "libx265":
             crf = (
