@@ -26,6 +26,7 @@ from .models import FileData
 from . import media_collection, push_collection, cover_art_cache_collection, config, NOTIFICATION_TTL
 from .cover_art import notification_image_fields
 from .ffprobe_utils import estimate_total_video_frames
+from .audio_encode import build_audio_output_options
 from .unicode_paths import resolve_filesystem_path
 
 
@@ -214,11 +215,22 @@ class Converter:
 
         options: dict[str, Any] = {
             "c:v": video_codec,
-            "c:a": encoding.audio_codec,
             "c:s": subtitle_codec,
         }
 
-        if encoding.audio_codec != "copy":
+        if self._file_data is not None:
+            audio_options = build_audio_output_options(
+                self._file_data.video_information,
+                preferred_codec=encoding.audio_codec,
+                fallback_bitrate=encoding.audio_bitrate,
+                audio_filter=encoding.audio_filter,
+            )
+            options.update(audio_options)
+            logging.info("Audio encode options: %s", audio_options)
+        elif encoding.audio_codec == "copy":
+            options["c:a"] = "copy"
+        else:
+            options["c:a"] = encoding.audio_codec
             options["b:a"] = encoding.audio_bitrate
             if encoding.audio_filter:
                 options["af"] = encoding.audio_filter

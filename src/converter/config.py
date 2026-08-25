@@ -38,11 +38,11 @@ class Encoding(BaseModel):
     vt_keyint_min: int = 24
     vt_spatial_aq: int = 1
     vt_realtime: int = 0
-    # "aac" re-encodes (helps Plex audio-only remux/transcode); "copy" keeps source audio
+    # Preferred codec when source audio is not already AAC ("copy" forces stream-copy always)
     audio_codec: str = "aac"
-    # AAC bitrate (e.g. "256k") — enough headroom for up to 5.1. Ignored when audio_codec=copy
+    # Fallback AAC bitrate when ffprobe does not report stream bit_rate (e.g. "256k")
     audio_bitrate: str = "256k"
-    # Stretch/squeeze audio to timestamps; reduces A/V desync that triggers bad Plex audio remux
+    # Applied only to audio streams that are re-encoded (not stream-copied)
     audio_filter: str | None = "aresample=async=1"
 
 
