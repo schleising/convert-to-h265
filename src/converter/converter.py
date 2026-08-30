@@ -26,6 +26,7 @@ from .models import FileData
 from . import media_collection, push_collection, cover_art_cache_collection, config, NOTIFICATION_TTL
 from .cover_art import notification_image_fields
 from .ffprobe_utils import estimate_total_video_frames
+from .ffprobe_probe import ProbeError, probe_video_information, summarize_streams
 from .audio_encode import build_audio_output_options
 from .unicode_paths import resolve_filesystem_path
 
@@ -648,6 +649,36 @@ class Converter:
     def _clear_overwrite_recovery_state(self) -> None:
         self._set_overwrite_recovery_state(overwrite_in_progress=False)
 
+    def _build_converted_probe_update(self, library_path: Path) -> dict[str, Any]:
+        if self._file_data is None:
+            return {}
+
+        try:
+            video_information = probe_video_information(library_path)
+            stream_summary = summarize_streams(video_information)
+        except ProbeError as exc:
+            logging.error(
+                "Post-conversion ffprobe failed for %s: %s",
+                self._file_data.filename,
+                exc,
+            )
+            if exc.stderr:
+                logging.error(exc.stderr)
+            return {}
+
+        self._file_data.converted_video_information = video_information
+        self._file_data.video_streams = stream_summary.video_streams
+        self._file_data.audio_streams = stream_summary.audio_streams
+        self._file_data.subtitle_streams = stream_summary.subtitle_streams
+        self._file_data.first_video_stream = stream_summary.first_video_stream
+        self._file_data.first_audio_stream = stream_summary.first_audio_stream
+        self._file_data.first_subtitle_stream = stream_summary.first_subtitle_stream
+
+        return {
+            "converted_video_information": video_information.model_dump(),
+            **stream_summary.as_dict(),
+        }
+
     def _finalize_overwrite_success(self, input_file_path: Path) -> None:
         if self._file_data is None:
             return
@@ -660,21 +691,22 @@ class Converter:
         self._file_data.start_copy_time = None
         self._file_data.percentage_complete = 100
 
+        update_fields: dict[str, Any] = {
+            "converted": self._file_data.converted,
+            "conversion_error": self._file_data.conversion_error,
+            "conversion_error_message": self._file_data.conversion_error_message,
+            "copying": self._file_data.copying,
+            "start_copy_time": self._file_data.start_copy_time,
+            "percentage_complete": self._file_data.percentage_complete,
+            "overwrite_in_progress": self._file_data.overwrite_in_progress,
+            "temp_output_path": self._file_data.temp_output_path,
+            "backup_path": self._file_data.backup_path,
+        }
+        update_fields.update(self._build_converted_probe_update(input_file_path))
+
         media_collection.update_one(
             {"filename": self._file_data.filename},
-            {
-                "$set": {
-                    "converted": self._file_data.converted,
-                    "conversion_error": self._file_data.conversion_error,
-                    "conversion_error_message": self._file_data.conversion_error_message,
-                    "copying": self._file_data.copying,
-                    "start_copy_time": self._file_data.start_copy_time,
-                    "percentage_complete": self._file_data.percentage_complete,
-                    "overwrite_in_progress": self._file_data.overwrite_in_progress,
-                    "temp_output_path": self._file_data.temp_output_path,
-                    "backup_path": self._file_data.backup_path,
-                }
-            },
+            {"$set": update_fields},
         )
 
     def _backup_staging_input(

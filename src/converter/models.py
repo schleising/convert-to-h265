@@ -120,6 +120,7 @@ class FileData(BaseModel):
     filename: str
     deleted: bool
     video_information: VideoInformation
+    converted_video_information: VideoInformation | None = None
     conversion_required: bool
     converting: bool
     converted: bool
@@ -143,6 +144,12 @@ class FileData(BaseModel):
     current_size: int
     backend_name: str = "None"
     speed: float | None = None
+
+    def effective_video_information(self) -> VideoInformation:
+        """Library file metadata when converted; otherwise the walker probe."""
+        if self.converted and self.converted_video_information is not None:
+            return self.converted_video_information
+        return self.video_information
 
 
 class ConvertedFileDataFromDb(BaseModel):

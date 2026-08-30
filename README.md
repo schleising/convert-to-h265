@@ -150,3 +150,22 @@ During the ffmpeg encode, `percentage_complete` is driven by **encoded video fra
 For variable frame-rate sources the estimate can be about **±1–2%** off near the end of the encode; a successful convert still forces 100% before the copy/backup phase. Post-encode backup and library commit progress remains **byte-based**.
 
 See [Design/ConversionProgressFrames.md](Design/ConversionProgressFrames.md).
+
+## Post-conversion metadata
+
+After a successful library commit, the converter runs ffprobe on the **committed file** and stores the result as `converted_video_information`. The original walker probe remains in `video_information` for history and queue sorting.
+
+For rows converted before this feature, run the one-off backfill on the Mac Mini host (outside Docker):
+
+```bash
+export DB_URL=mongodb://macmini2.home.arpa:27017
+export LOCAL_MEDIA_ROOT=/Volumes/X10/Media   # or /Volumes/Media on native install
+pip install tqdm   # optional; nicer progress bar
+python3 src/backfill_converted_video_information.py
+```
+
+The script is safe to interrupt (`Ctrl+C`); rerun the same command to resume from the checkpoint at `~/.cache/convert-to-h265/backfill_converted_video_information.json`.
+
+Use `--dry-run` to count candidates without writing, and `--force` to re-probe rows that already have post-conversion metadata.
+
+See [Design/PostConversionVideoInformation.md](Design/PostConversionVideoInformation.md).

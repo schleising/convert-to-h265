@@ -1,15 +1,13 @@
 from pathlib import Path
-import subprocess
 import logging
 
 from pymongo import UpdateOne
 from pymongo.errors import ServerSelectionTimeoutError, NetworkTimeout, AutoReconnect
 
-from pydantic import ValidationError
-
-from .models import VideoInformation, FileData, FileInfo
+from .models import FileData, FileInfo
 from . import media_collection
 from .cover_art_prefetch import ensure_posters_background
+from .ffprobe_probe import ProbeError, probe_video_information, summarize_streams
 from .unicode_paths import (
     clear_directory_cache,
     find_equivalent_path,
@@ -23,17 +21,6 @@ class CodecDetector:
     def __init__(self, files: dict[str, FileInfo]) -> None:
         # List of files to detect the encoding of
         self._files: dict[str, FileInfo] = files
-
-        # The base command to run ffprobe
-        self._ffprobe_base_command = [
-            "ffprobe",
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-        ]
 
         # Get the old data from MongoDB getting just the filename
         logging.info("Getting old data from MongoDB")
@@ -166,117 +153,59 @@ class CodecDetector:
             file_stat = probe_path.stat()
             file_size = file_stat.st_size
 
-            ffprobe_command = list(self._ffprobe_base_command)
-            ffprobe_command.append(probe_path.as_posix())
+            conversion_required = True
 
-            ffprobe_output = subprocess.run(
-                ffprobe_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
+            try:
+                video_information = probe_video_information(probe_path)
+            except ProbeError as exc:
+                logging.error("ffprobe failed for %s: %s", file_info.filename, exc)
+                if exc.stderr:
+                    logging.error(exc.stderr)
+                continue
+
+            stream_summary = summarize_streams(video_information)
+
+            file_data = FileData(
+                filename=file_info.filename,
+                deleted=False,
+                video_information=video_information,
+                conversion_required=conversion_required,
+                converting=False,
+                converted=False,
+                conversion_error=False,
+                conversion_error_message=None,
+                copying=False,
+                percentage_complete=0,
+                start_copy_time=None,
+                start_conversion_time=None,
+                end_conversion_time=None,
+                overwrite_in_progress=False,
+                temp_output_path=None,
+                backup_path=None,
+                video_streams=stream_summary.video_streams,
+                audio_streams=stream_summary.audio_streams,
+                subtitle_streams=stream_summary.subtitle_streams,
+                first_video_stream=stream_summary.first_video_stream,
+                first_audio_stream=stream_summary.first_audio_stream,
+                first_subtitle_stream=stream_summary.first_subtitle_stream,
+                pre_conversion_size=file_size,
+                current_size=file_size,
+                backend_name="None",
             )
 
-            conversion_required = True
-            video_stream_count = 0
-            audio_stream_count = 0
-            subtitle_stream_count = 0
-            first_video_stream = None
-            first_audio_stream = None
-            first_eng_audio_stream = None
-            first_und_audio_stream = None
-            first_subtitle_stream = None
-
-            if ffprobe_output.returncode == 0:
-                try:
-                    video_information = VideoInformation.parse_raw(
-                        ffprobe_output.stdout
-                    )
-                except ValidationError as e:
-                    logging.error(f"Error parsing {file_info.filename}")
-                    logging.error(e)
-                    continue
-
-                for stream in video_information.streams:
-                    if stream.codec_type == "video":
-                        if first_video_stream is None:
-                            first_video_stream = stream.index
-                        video_stream_count += 1
-
-                    elif stream.codec_type == "audio":
-                        if first_audio_stream is None:
-                            first_audio_stream = stream.index
-
-                        if stream.tags:
-                            if stream.tags.language == "eng":
-                                if first_eng_audio_stream is None:
-                                    first_eng_audio_stream = stream.index
-
-                            if stream.tags.language == "und":
-                                if first_und_audio_stream is None:
-                                    first_und_audio_stream = stream.index
-
-                        audio_stream_count += 1
-
-                    elif stream.codec_type == "subtitle":
-                        if first_subtitle_stream is None:
-                            first_subtitle_stream = stream.index
-                        subtitle_stream_count += 1
-
-                if first_video_stream is None:
-                    first_video_stream = 0
-
-                if first_eng_audio_stream is not None:
-                    first_audio_stream = first_eng_audio_stream
-                elif first_und_audio_stream is not None:
-                    first_audio_stream = first_und_audio_stream
-
-                if first_audio_stream is None:
-                    first_audio_stream = 1
-
-                file_data = FileData(
-                    filename=file_info.filename,
-                    deleted=False,
-                    video_information=video_information,
-                    conversion_required=conversion_required,
-                    converting=False,
-                    converted=False,
-                    conversion_error=False,
-                    conversion_error_message=None,
-                    copying=False,
-                    percentage_complete=0,
-                    start_copy_time=None,
-                    start_conversion_time=None,
-                    end_conversion_time=None,
-                    overwrite_in_progress=False,
-                    temp_output_path=None,
-                    backup_path=None,
-                    video_streams=video_stream_count,
-                    audio_streams=audio_stream_count,
-                    subtitle_streams=subtitle_stream_count,
-                    first_video_stream=first_video_stream,
-                    first_audio_stream=first_audio_stream,
-                    first_subtitle_stream=first_subtitle_stream,
-                    pre_conversion_size=file_size,
-                    current_size=file_size,
-                    backend_name="None",
-                )
-
-                if conversion_required:
-                    logging.info(f"{file_info.filename}: CONVERT")
-                else:
-                    logging.info(f"{file_info.filename}: OK")
-
-                bulk_write_operations.append(
-                    UpdateOne(
-                        {"filename": file_info.filename},
-                        {"$set": file_data.model_dump()},
-                        upsert=True,
-                    )
-                )
-                new_filenames.append(file_info.filename)
+            if conversion_required:
+                logging.info(f"{file_info.filename}: CONVERT")
             else:
-                logging.error(f"ffprobe failed for {file_info.filename}")
-                logging.error(ffprobe_output.stderr)
+                logging.info(f"{file_info.filename}: OK")
+
+            bulk_write_operations.append(
+                UpdateOne(
+                    {"filename": file_info.filename},
+                    {"$set": file_data.model_dump()},
+                    upsert=True,
+                )
+            )
+            new_filenames.append(file_info.filename)
 
         if bulk_write_operations:
             # There is new data to write to MongoDB

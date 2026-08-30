@@ -81,3 +81,13 @@ def map_to_db_path(local_path: Path, local_root: Path, db_root: Path) -> str:
     native_path = resolve_filesystem_path(local_path)
     relative_path = native_path.relative_to(local_root)
     return (db_root / relative_path).as_posix()
+
+
+def map_db_path_to_local(db_path: str, db_root: Path, local_root: Path) -> Path:
+    """Map a canonical DB path (e.g. ``/Media/...``) to a host filesystem path."""
+    source_path = Path(db_path)
+    try:
+        relative_path = source_path.relative_to(db_root)
+    except ValueError:
+        return resolve_filesystem_path(source_path)
+    return resolve_filesystem_path(local_root / relative_path)
