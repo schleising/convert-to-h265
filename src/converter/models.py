@@ -94,7 +94,6 @@ class Tags1(BaseModel):
     creation_time: str | None = None
     title: str | None = None
     comment: str | None = None
-    encoder: str | None = None
 
 
 class Format(BaseModel):
