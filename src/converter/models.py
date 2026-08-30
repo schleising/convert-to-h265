@@ -1,6 +1,26 @@
 from datetime import datetime
+from typing import Any, Mapping
 
 from pydantic import BaseModel
+
+
+def effective_video_information_from_db(
+    db_file: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Library file metadata when converted; otherwise the walker probe."""
+    if (
+        db_file.get("converted")
+        and db_file.get("converted_video_information") is not None
+    ):
+        converted_info = db_file.get("converted_video_information")
+        if isinstance(converted_info, dict):
+            return converted_info
+
+    video_info = db_file.get("video_information")
+    if isinstance(video_info, dict):
+        return video_info
+
+    return {}
 
 
 class Disposition(BaseModel):
