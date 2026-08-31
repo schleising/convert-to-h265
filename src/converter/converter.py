@@ -68,6 +68,8 @@ class Converter:
     _copy_max_attempts = 3
     _copy_retry_backoff_seconds = (2, 5, 10)
     _progress_update_interval_seconds = 1.0
+    _private_dir_mode = 0o700
+    _private_file_mode = 0o600
 
     def __init__(self):
         # Create ffmpeg object and set it to None
@@ -94,6 +96,22 @@ class Converter:
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _ensure_private_directory(self, path: Path) -> None:
+        """Create ``path`` (and parents) and set directory mode to 0700."""
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path.chmod(self._private_dir_mode)
+        except OSError as exc:
+            logging.warning(f"Could not set mode {self._private_dir_mode:o} on {path}: {exc}")
+
+    def _ensure_private_file(self, path: Path) -> None:
+        """Set file mode to 0600 when the path exists."""
+        try:
+            if path.is_file():
+                path.chmod(self._private_file_mode)
+        except OSError as exc:
+            logging.warning(f"Could not set mode {self._private_file_mode:o} on {path}: {exc}")
 
     def _resolve_source_path(self, filename: str) -> Path:
         source_path = Path(filename)
@@ -552,6 +570,8 @@ class Converter:
                     )
 
                 shutil.copystat(source_path, destination_path)
+                # copystat preserves source mode; force private file permissions.
+                self._ensure_private_file(destination_path)
                 self._verify_copied_file_with_retry(source_path, destination_path)
                 break
             except OSError as exc:
@@ -729,7 +749,7 @@ class Converter:
         self._backup_path = Path(
             config.config_data.folders.backup, self._temporary_input_path.name
         )
-        self._backup_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_private_directory(self._backup_path.parent)
 
         backup_created = False
         if self._paths_share_device(self._temporary_input_path, self._backup_path):
@@ -777,6 +797,8 @@ class Converter:
                     f"{Path(self._file_data.filename).name if self._file_data else 'unknown'}",
                 )
                 return False
+
+        self._ensure_private_file(self._backup_path)
 
         if total_post_copy_bytes > 0:
             backup_percentage = (
@@ -848,6 +870,7 @@ class Converter:
                 f"File {input_file_path} replaced successfully with "
                 f"{self._temporary_output_path}"
             )
+            self._ensure_private_file(input_file_path)
             return True
         except OSError as replace_error:
             logging.info(
@@ -977,6 +1000,7 @@ class Converter:
 
             try:
                 temp_output_path.replace(input_file_path)
+                self._ensure_private_file(input_file_path)
             except OSError:
                 try:
                     self._copy_file_with_progress(
@@ -1014,6 +1038,7 @@ class Converter:
             self._file_data.start_copy_time = None
             self._file_data.percentage_complete = 100
             self._clear_overwrite_recovery_state()
+            self._ensure_private_file(input_file_path)
 
             try:
                 self._finalize_overwrite_success(input_file_path)
@@ -1327,7 +1352,7 @@ class Converter:
             extension = input_file_path.suffix
 
             # Ensure the conversion staging directory exists before copying
-            config.config_data.folders.conversions.mkdir(parents=True, exist_ok=True)
+            self._ensure_private_directory(config.config_data.folders.conversions)
 
             # Create temporary input and output paths
             self._temporary_input_path = Path(
@@ -1470,8 +1495,12 @@ class Converter:
                     )
 
             try:
-                # Execute the ffmpeg command
-                self._ffmpeg.execute()
+                # Restrict ffmpeg-created files to owner-only while encoding.
+                previous_umask = os.umask(0o077)
+                try:
+                    self._ffmpeg.execute()
+                finally:
+                    os.umask(previous_umask)
             except FFmpegError as e:
                 # There was an error executing the ffmpeg command
                 logging.error(
@@ -1504,6 +1533,7 @@ class Converter:
                 logging.info(f"Successfully converted {self._file_data.filename}")
                 self._encode_last_percentage = 100.0
                 self._update_percentage_complete(100, force=True)
+                self._ensure_private_file(self._temporary_output_path)
 
                 # Check that the file size has been reduced
                 file_size_reduced = (
