@@ -4,6 +4,7 @@ services:
   mongodb:
     image: mongo
     hostname: mongodb
+    # Official image entrypoint drops mongod to the mongodb user (uid 999).
     ports:
       - 27017:27017
     volumes:
@@ -22,6 +23,8 @@ services:
       - mongodb
     container_name: MB-1
     hostname: MB-1
+    # Match host media ownership if mounts are mode 0700 (e.g. PUID=501 PGID=20 on macOS).
+    user: "${PUID:-501}:${PGID:-20}"
     environment:
       - FOLDER_WALKER=TRUE
       - BACKEND_NAME=MB-1
@@ -47,6 +50,8 @@ services:
       - mongodb
     container_name: MB-2
     hostname: MB-2
+    # Match host media ownership if mounts are mode 0700 (e.g. PUID=501 PGID=20 on macOS).
+    user: "${PUID:-501}:${PGID:-20}"
     environment:
       - FOLDER_WALKER=FALSE
       - BACKEND_NAME=MB-2
