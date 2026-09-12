@@ -2,7 +2,7 @@ aiohappyeyeballs==2.7.1
 aiohttp==3.14.3
 aiosignal==1.4.0
 annotated-types==0.8.0
-anyio==4.15.0
+anyio==4.15.1
 attrs==26.1.0
 certifi==2026.7.22
 cffi==2.1.1
@@ -16,14 +16,14 @@ httpcore==1.0.9
 httpx==0.28.1
 idna==3.19
 media-cover-art @ git+https://github.com/schleising/media-cover-art.git@c64eabb8468158e00025874656b5da83f6cb3e5c
-multidict==6.7.1
+multidict==6.8.0
 propcache==0.5.2
 py-vapid==1.9.4
 pycparser==3.0
 pydantic==2.13.5
 pydantic_core==2.46.5
 pyee==14.0.0
-pymongo==4.18.0
+pymongo==4.18.1
 python-ffmpeg==2.0.12
 pywebpush==2.5.0
 requests==2.34.2
