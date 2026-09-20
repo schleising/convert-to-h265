@@ -15,7 +15,7 @@ http_ece==1.2.1
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.20
-media-cover-art @ git+https://github.com/schleising/media-cover-art.git@5bee7cce7bb9e569ee9c68d3bd0a2a541f16f28e
+media-cover-art @ git+https://github.com/schleising/media-cover-art.git@v0.1.4
 multidict==6.9.0
 propcache==0.5.4
 py-vapid==1.9.4
