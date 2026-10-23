@@ -11,6 +11,18 @@ The project now supports a split deployment model:
 
 The walker continues writing canonical Docker-style paths like `/Media/...` into MongoDB. The native converter maps those paths to `/Volumes/Media/...` before accessing the filesystem.
 
+## Dependencies
+
+Direct dependencies are declared in `pyproject.toml`. On a machine with [uv](https://docs.astral.sh/uv/), refresh git dependencies and write the pip requirements:
+
+```bash
+./scripts/update_dependencies.py
+```
+
+That updates every git source in `uv.lock` (currently `media-cover-art`), then writes `walker/requirements.txt` and `backend/requirements.txt`. Docker and the macOS installer install those files with pip. The target machines do not need uv.
+
+The walker requirements are `pydantic`, `pymongo`, and `media-cover-art`. The converter requirements add `python-ffmpeg`, `pywebpush`, and `requests`.
+
 ## Shared prerequisites
 
 In order to send notifications the following files are needed in the `src/secrets` directory:
@@ -40,7 +52,7 @@ The native converter is installed with the macOS scripts in `scripts/macos`.
 
 1. Install ffmpeg with `hevc_videotoolbox` support and ensure it is on `PATH`.
 2. Create the macOS media mount at `/Volumes/Media`.
-3. Ensure the repo Python environment exists at `.venv`, or ensure `python3` is available.
+3. Ensure Python 3.12 or newer is available as `python3`. The installer creates the service virtualenv and installs `backend/requirements.txt`.
 4. Keep MongoDB reachable from the Mac Mini.
 
 ### Install

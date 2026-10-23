@@ -8,7 +8,6 @@ import os
 
 from .folder_walker import FolderWalker
 from .codec_detector import CodecDetector
-from .converter import Converter
 from . import config
 
 class TaskScheduler:
@@ -95,7 +94,9 @@ class TaskScheduler:
                     # If the current time is between the start conversion time and the end conversion time, start the conversion
                     self._conversion_running = True
 
-                    # Construct a Converter object
+                    # Imported here so the walker does not need the converter packages.
+                    from .converter import Converter
+
                     converter = Converter()
 
                     # Start the conversion

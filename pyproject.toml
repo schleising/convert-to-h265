@@ -1,0 +1,32 @@
+[project]
+name = "convert-to-h265"
+version = "0.1.0"
+description = "Convert a video library to H.265"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+# Imported by both the walker and the converter.
+dependencies = [
+    "pydantic>=2.14.1",
+    "pymongo>=4.19.0",
+]
+
+# Role-specific direct dependencies. scripts/update_dependencies.py writes
+# walker/requirements.txt and backend/requirements.txt from these groups.
+[dependency-groups]
+walker = [
+    "media-cover-art",
+]
+converter = [
+    "media-cover-art",
+    "python-ffmpeg>=2.0.12",
+    "pywebpush>=2.5.0",
+    "requests>=2.34.2",
+]
+
+[tool.uv]
+package = false
+default-groups = ["walker", "converter"]
+
+[tool.uv.sources]
+media-cover-art = { git = "https://github.com/schleising/media-cover-art.git", tag = "v0.1.5" }

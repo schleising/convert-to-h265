@@ -33,6 +33,11 @@ else
     exit 1
 fi
 
+if ! "$BOOTSTRAP_PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)'; then
+    echo "Python 3.12 or newer is required (found $("$BOOTSTRAP_PYTHON_BIN" --version))." >&2
+    exit 1
+fi
+
 sync_runtime_tree() {
     mkdir -p "$RUNTIME_ROOT/src"
     /usr/bin/rsync -a --delete --exclude '__pycache__' "$REPO_ROOT/src/" "$RUNTIME_ROOT/src/"
