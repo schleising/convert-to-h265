@@ -451,12 +451,12 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 converter = [
-    { name = "media-cover-art", git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.5" },
+    { name = "media-cover-art", git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.6" },
     { name = "python-ffmpeg", specifier = ">=2.0.12" },
     { name = "pywebpush", specifier = ">=2.5.0" },
     { name = "requests", specifier = ">=2.34.2" },
 ]
-walker = [{ name = "media-cover-art", git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.5" }]
+walker = [{ name = "media-cover-art", git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.6" }]
 
 [[package]]
 name = "cryptography"
@@ -676,8 +676,8 @@ wheels = [
 
 [[package]]
 name = "media-cover-art"
-version = "0.1.5"
-source = { git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.5#b56f32b8cf2c073f143bb3e6df905265c731583d" }
+version = "0.1.6"
+source = { git = "https://github.com/schleising/media-cover-art.git?tag=v0.1.6#3076b982a1674443ce91fc16ecb1e1027ac22c91" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
