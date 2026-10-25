@@ -19,7 +19,7 @@ Direct dependencies are declared in `pyproject.toml`. On a machine with [uv](htt
 ./scripts/update_dependencies.py
 ```
 
-That updates every git source in `uv.lock` (currently `media-cover-art`), then writes `walker/requirements.txt` and `backend/requirements.txt`. Docker and the macOS installer install those files with pip. The target machines do not need uv.
+That moves each git dependency to its newest release tag (currently `media-cover-art`), refreshes `uv.lock`, then writes `walker/requirements.txt` and `backend/requirements.txt`. Docker and the macOS installer install those files with pip. The target machines do not need uv.
 
 The walker requirements are `pydantic`, `pymongo`, and `media-cover-art`. The converter requirements add `python-ffmpeg`, `pywebpush`, and `requests`.
 
