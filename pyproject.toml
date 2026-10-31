@@ -7,7 +7,7 @@ license = "Apache-2.0"
 requires-python = ">=3.12"
 # Imported by both the walker and the converter.
 dependencies = [
-    "pydantic>=2.14.1",
+    "pydantic>=2.14.2",
     "pymongo>=4.19.0",
 ]
 
@@ -15,10 +15,10 @@ dependencies = [
 # walker/requirements.txt and backend/requirements.txt from these groups.
 [dependency-groups]
 walker = [
-    "media-cover-art",
+    "media-cover-art>=0.1.6",
 ]
 converter = [
-    "media-cover-art",
+    "media-cover-art>=0.1.6",
     "python-ffmpeg>=2.0.12",
     "pywebpush>=2.5.0",
     "requests>=2.34.2",
