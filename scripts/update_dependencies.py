@@ -2,9 +2,8 @@
 """Upgrade every dependency and write pip requirements for each role.
 
 Git sources pinned to a release tag move to the newest ``vMAJOR.MINOR.PATCH``
-tag. Every package in the lock then moves to the newest release that satisfies
-the project, including packages whose previous pin matched an old lower bound
-in ``pyproject.toml``.
+tag. Every direct dependency in ``pyproject.toml`` then moves to a lower bound
+of the newest release, and the lock, virtualenv, and requirements files follow.
 
 Run this on a machine that has uv. Docker and the macOS installer install the
 generated requirements with pip and do not need uv.
@@ -21,7 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
+LOCK = ROOT / "uv.lock"
 _RELEASE_TAG = re.compile(r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
+_REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 
 REQUIREMENTS = {
     "walker": ROOT / "walker" / "requirements.txt",
@@ -117,6 +118,98 @@ def pin_latest_release(source: GitSource) -> None:
     print(f"{source.name}: {source.tag} -> {latest}")
 
 
+def normalize_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def requirement_name(requirement: str) -> str | None:
+    match = _REQUIREMENT_NAME.match(requirement.split(";", 1)[0].strip())
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def with_minimum(requirement: str, version: str) -> str:
+    body, _separator, marker = requirement.partition(";")
+    match = _REQUIREMENT_NAME.match(body.strip())
+    if match is None:
+        return requirement
+    name = match.group(1)
+    extras = ""
+    extras_match = re.match(r"\[[^\]]+\]", body.strip()[len(name) :])
+    if extras_match is not None:
+        extras = extras_match.group(0)
+    updated = f"{name}{extras}>={version}"
+    if marker:
+        return f"{updated}; {marker.strip()}"
+    return updated
+
+
+def locked_versions() -> dict[str, str]:
+    lock = tomllib.loads(LOCK.read_text(encoding="utf-8"))
+    packages = lock.get("package")
+    if not isinstance(packages, list):
+        return {}
+
+    versions: dict[str, str] = {}
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        name = package.get("name")
+        version = package.get("version")
+        if isinstance(name, str) and isinstance(version, str):
+            versions[normalize_name(name)] = version
+    return versions
+
+
+def direct_requirements() -> list[str]:
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    requirements: list[str] = []
+
+    project_table = project.get("project")
+    if isinstance(project_table, dict):
+        dependencies = project_table.get("dependencies")
+        if isinstance(dependencies, list):
+            requirements.extend(item for item in dependencies if isinstance(item, str))
+
+    groups = project.get("dependency-groups")
+    if isinstance(groups, dict):
+        for group in groups.values():
+            if isinstance(group, list):
+                requirements.extend(item for item in group if isinstance(item, str))
+    return requirements
+
+
+def write_minimum_versions() -> None:
+    """Raise each direct dependency in pyproject.toml to the locked release."""
+    versions = locked_versions()
+    text = PYPROJECT.read_text(encoding="utf-8")
+    seen: set[str] = set()
+    for requirement in direct_requirements():
+        if requirement in seen:
+            continue
+        seen.add(requirement)
+        name = requirement_name(requirement)
+        if name is None:
+            continue
+        version = versions.get(normalize_name(name))
+        if version is None:
+            print(f"No locked version for {name}; leaving {requirement}")
+            continue
+        updated = with_minimum(requirement, version)
+        if updated == requirement:
+            print(f"{name} is already at >={version}")
+            continue
+        quoted_old = f'"{requirement}"'
+        quoted_new = f'"{updated}"'
+        if quoted_old not in text:
+            print(f"Could not find {quoted_old} in {PYPROJECT.name}", file=sys.stderr)
+            raise SystemExit(1)
+        text = text.replace(quoted_old, quoted_new)
+        print(f"{requirement} -> {updated}")
+    PYPROJECT.write_text(text, encoding="utf-8")
+
+
 def run(args: list[str]) -> None:
     print("+", " ".join(args), flush=True)
     try:
@@ -137,6 +230,8 @@ def main() -> None:
 
     print("Upgrading all dependencies to the latest versions")
     run(["uv", "lock", "--upgrade", "--no-managed-python"])
+    write_minimum_versions()
+    run(["uv", "lock", "--no-managed-python"])
     run(["uv", "sync", "--no-managed-python"])
 
     for group, destination in REQUIREMENTS.items():

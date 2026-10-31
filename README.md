@@ -13,13 +13,13 @@ The walker continues writing canonical Docker-style paths like `/Media/...` into
 
 ## Dependencies
 
-Direct dependencies are declared in `pyproject.toml` without version pins. On a machine with [uv](https://docs.astral.sh/uv/), upgrade them and write the pip requirements:
+Direct dependencies are declared in `pyproject.toml`. On a machine with [uv](https://docs.astral.sh/uv/), upgrade them and write the pip requirements:
 
 ```bash
 ./update_dependencies.sh
 ```
 
-That moves each git dependency to its newest release tag (currently `media-cover-art`), upgrades every package in `uv.lock` and `.venv` to the latest release, then writes `walker/requirements.txt` and `backend/requirements.txt`. Docker and the macOS installer install those files with pip. The target machines do not need uv.
+That moves each git dependency to its newest release tag (currently `media-cover-art`), raises every direct dependency in `pyproject.toml` to that latest release, and updates `uv.lock`, `.venv`, `walker/requirements.txt`, and `backend/requirements.txt`. Docker and the macOS installer install those files with pip. The target machines do not need uv.
 
 The walker requirements are `pydantic`, `pymongo`, and `media-cover-art`. The converter requirements add `python-ffmpeg`, `pywebpush`, and `requests`.
 

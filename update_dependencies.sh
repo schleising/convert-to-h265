@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Upgrade every dependency: git tags, the uv lock, .venv, and per-service requirements.
+# Upgrade every dependency: pyproject.toml, git tags, the uv lock, .venv, and requirements.
 #
 # Usage (from repo root):
 #   ./update_dependencies.sh
