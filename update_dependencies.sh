@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Upgrade git dependency tags, the uv lock, .venv, and per-service requirements files.
+# Upgrade every dependency: git tags, the uv lock, .venv, and per-service requirements.
 #
 # Usage (from repo root):
 #   ./update_dependencies.sh
-#   ./update_dependencies.sh --dry-run
 
 set -euo pipefail
 

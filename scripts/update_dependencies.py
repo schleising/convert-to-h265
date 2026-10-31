@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Refresh git dependencies and write pip requirements for each role.
+"""Upgrade every dependency and write pip requirements for each role.
 
-For each git source pinned to a release tag, move the pin to the newest
-``vMAJOR.MINOR.PATCH`` tag on that repository, then refresh the lock.
+Git sources pinned to a release tag move to the newest ``vMAJOR.MINOR.PATCH``
+tag. Every package in the lock then moves to the newest release that satisfies
+the project, including packages whose previous pin matched an old lower bound
+in ``pyproject.toml``.
 
 Run this on a machine that has uv. Docker and the macOS installer install the
 generated requirements with pip and do not need uv.
@@ -130,9 +132,12 @@ def main() -> None:
         print("Updating git dependencies: " + ", ".join(source.name for source in sources))
         for source in sources:
             pin_latest_release(source)
-        run(["uv", "lock", *(f"--upgrade-package={source.name}" for source in sources)])
     else:
         print("No git dependencies to update.")
+
+    print("Upgrading all dependencies to the latest versions")
+    run(["uv", "lock", "--upgrade", "--no-managed-python"])
+    run(["uv", "sync", "--no-managed-python"])
 
     for group, destination in REQUIREMENTS.items():
         relative_destination = destination.relative_to(ROOT).as_posix()
