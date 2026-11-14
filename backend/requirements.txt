@@ -65,9 +65,9 @@ pydantic==2.14.3
     #   media-cover-art
 pydantic-core==2.50.4
     # via pydantic
-pyee==16.0.1
+pyee==16.0.2
     # via python-ffmpeg
-pymongo==4.19.0
+pymongo==4.20.0
     # via
     #   convert-to-h265
     #   media-cover-art
