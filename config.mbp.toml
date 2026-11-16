@@ -1,0 +1,47 @@
+# MacBook compose only. The Mac Mini keeps src/config.toml, where staging
+# stays on the same APFS volume as the library.
+# /Media is the X10 share already mounted on the Mac. Staging is local.
+
+[folders]
+    include = [
+        "/Media/TV",
+        "/Media/Films",
+    ]
+
+    exclude = [
+        "/Media/Films/VR",
+    ]
+
+    backup = "/Media/Backup"
+
+    conversions = "/Conversions"
+
+[schedule]
+    timezone = "Europe/London"
+    scan_time = 00:00:00
+    start_conversion_time = 00:05:00
+    end_conversion_time = 23:59:00
+
+[encoding]
+    video_codec = "libx265"
+    small_height_threshold = 600
+    x265_crf = 28
+    x265_crf_small_height = 23
+    x265_preset = "medium"
+    vt_qv = 50
+    vt_qv_small_height = 50
+    vt_g = 72
+    vt_keyint_min = 24
+    vt_spatial_aq = 1
+    vt_realtime = 0
+    audio_codec = "aac"
+    audio_bitrate = "256k"
+    audio_filter = "aresample=async=1"
+
+[runtime]
+    log_directory = "/tmp/convert-to-h265/logs"
+    secrets_dir = "src/secrets"
+
+[path_map]
+    from = "/Media"
+    to = "/Media"

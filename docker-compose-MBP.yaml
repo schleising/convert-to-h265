@@ -1,5 +1,6 @@
-# Legacy / laptop-oriented compose. Prefer docker-compose.yaml for Mac Mini + X10.
-# Same layout rule: library, Backup, and Conversions all under /Media (no converter_volume).
+# Laptop compose. Prefer docker-compose.yaml for Mac Mini + X10.
+# Library and Backup use the X10 share already mounted on the Mac at
+# /Volumes/X10. Staging is a local directory, not a folder on that share.
 services:
   backend-1:
     build: backend
@@ -10,13 +11,16 @@ services:
     environment:
       - FOLDER_WALKER=FALSE
       - BACKEND_NAME=MBP-1
-      - DB_URL=mongodb://host.docker.internal:27017
+      - DB_URL=mongodb://macmini2.home.arpa:27017
       - DB_NAME=media
       - DB_COLLECTION=media_collection
       - PUSH_COLLECTION=push_subscriptions
+      - CONVERTER_CONFIG_PATH=/config.mbp.toml
     volumes:
       - ./src:/src:ro
+      - ./config.mbp.toml:/config.mbp.toml:ro
       - /Volumes/X10/Media:/Media:rw
+      - ${HOME}/Downloads/Conversions:/Conversions:rw
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
